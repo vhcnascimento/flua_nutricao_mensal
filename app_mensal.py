@@ -502,9 +502,12 @@ def apply_row_colors(row):
 
 def abrev_nutri(nome):
     """Retorna Primeiro + Último sobrenome. Ex: BEATRIZ BOTEQUIO DE MORAES MACHADO → Beatriz Machado"""
-    partes = str(nome).strip().split()
+    if pd.isna(nome) or nome is None:
+        return "N/A"
+    nome_str = str(nome)
+    partes = nome_str.strip().split()
     if len(partes) <= 2:
-        return nome.title()
+        return nome_str.title()
     return f"{partes[0].title()} {partes[-1].title()}"
 
 
