@@ -413,21 +413,30 @@ def build_graph_mensal(df_f):
     return df_h
 
 
-def build_graph_dia_semana(df_a, df_d, df_e, mes_num):
-    """Gráfico barras+linha por dia da semana"""
-    a = df_a[df_a['Mês'] == mes_num].copy()
-    d = df_d[df_d['Mês'] == mes_num].copy()
-    e = df_e[df_e['Mês'] == mes_num].copy() if not df_e.empty else pd.DataFrame()
+def build_graph_dia_semana(df_a, df_d, df_e):
+    """Gráfico barras+linha por dia da semana consolidado"""
+    a = df_a.copy()
+    d = df_d.copy()
+    e = df_e.copy() if not df_e.empty else pd.DataFrame()
 
     for df_ in [a, d, e]:
         if not df_.empty:
+            df_['Data'] = pd.to_datetime(df_['Data'], errors='coerce')
             df_['Dia_semana_cod']  = df_['Data'].dt.weekday
             df_['Dia_semana_desc'] = df_['Dia_semana_cod'].map(dict_dia_semana)
 
-    of = a.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['Janelas'].sum()
-    of.rename(columns={'Janelas':'Oferta'}, inplace=True)
-    oc = d.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['Número do caso'].count()
-    oc.rename(columns={'Número do caso':'Ocupação'}, inplace=True)
+    if not a.empty:
+        of = a.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['Janelas'].sum()
+        of.rename(columns={'Janelas':'Oferta'}, inplace=True)
+    else:
+        of = pd.DataFrame(columns=['Dia_semana_cod','Dia_semana_desc','Oferta'])
+
+    if not d.empty:
+        oc = d.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['Número do caso'].count()
+        oc.rename(columns={'Número do caso':'Ocupação'}, inplace=True)
+    else:
+        oc = pd.DataFrame(columns=['Dia_semana_cod','Dia_semana_desc','Ocupação'])
+
     df_i = of.merge(oc, on=['Dia_semana_cod','Dia_semana_desc'], how='outer')
 
     if not e.empty and 'Dia_semana_cod' in e.columns:
@@ -442,6 +451,29 @@ def build_graph_dia_semana(df_a, df_d, df_e, mes_num):
     df_i["% Realizado"] = (df_i["Realizado"] / df_i["Ocupação"]).replace([np.inf, np.nan], 0) * 100
     df_i = df_i.sort_values('Dia_semana_cod')
     return df_i
+
+
+def preparar_tabela_dia_semana(df_i):
+    """Transforma o DF de Dia da Semana para o formato da imagem (transposto)"""
+    if df_i.empty:
+        return pd.DataFrame()
+    
+    # Selecionar e renomear para exibição
+    cols_order = ['Oferta', 'Ocupação', 'Realizado', '% Ocupação', '% Realizado']
+    df_t = df_i.set_index('Dia_semana_desc')[cols_order].T
+    
+    # Formatação amigável
+    for col in df_t.columns:
+        # Valores absolutos
+        for metric in ['Oferta', 'Ocupação', 'Realizado']:
+            val = df_t.loc[metric, col]
+            df_t.loc[metric, col] = f"{int(val):,}".replace(",", ".")
+        # Percentuais
+        for metric in ['% Ocupação', '% Realizado']:
+            val = df_t.loc[metric, col]
+            df_t.loc[metric, col] = f"{val:.0f}%"
+            
+    return df_t.reset_index().rename(columns={'index': 'Métrica'})
 
 
 def grafico_barra_linha(df_plot, col_x, titulo):
@@ -1086,6 +1118,20 @@ elif st.session_state.current_step == 2:
             if not df_h.empty:
                 fig_h = grafico_barra_linha(df_h, "Label", f"Oferta, Ocupação e Realizado — {periodo_label}")
                 st.plotly_chart(fig_h, use_container_width=True)
+
+            # ── Gráfico por Dia da Semana ─────────────────────────────────────
+            st.markdown("---")
+            st.subheader("📅 Desempenho por Dia da Semana")
+            df_ds = build_graph_dia_semana(df_a_fil, df_d_fil, df_e_fil)
+            if not df_ds.empty:
+                # Tabela Transposta (padrão da imagem)
+                df_ds_tab = preparar_tabela_dia_semana(df_ds)
+                st.dataframe(df_ds_tab.style.apply(apply_row_colors, axis=1),
+                             use_container_width=True, hide_index=True)
+                
+                # Gráfico
+                fig_ds = grafico_barra_linha(df_ds, "Dia_semana_desc", f"Performance por Dia da Semana — {periodo_label}")
+                st.plotly_chart(fig_ds, use_container_width=True)
 
             # ── Output C — Semanas ───────────────────────────────────────────
             if not df_c.empty:
