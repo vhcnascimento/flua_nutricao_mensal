@@ -28,7 +28,9 @@ import data_loader
 # ─────────────────────────────────────────────────────────────────────────────
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data", "mensal")
 
-FILE_OPTUM = os.path.join(DATA_DIR, "06 Histórico Extração Optum Tratada.xlsx")
+# Busca dinâmica pelo arquivo Optum (evita problemas de encoding no nome do arquivo)
+_optum_candidates = glob.glob(os.path.join(DATA_DIR, "*Histórico*Optum*.xlsx"))
+FILE_OPTUM = _optum_candidates[0] if _optum_candidates else os.path.join(DATA_DIR, "06 Histórico Extração Optum Tratada.xlsx")
 # Busca dinâmica por todos os arquivos de controle de atendimentos
 FILES_E = glob.glob(os.path.join(DATA_DIR, "*Controle de atendimentos*.xlsx"))
 
@@ -44,6 +46,12 @@ MAPA_NOMES = {
     'C NTIA DOS SANTOS IRINEU':'CÍNTIA DOS SANTOS IRINEU',
     'CINTIA DOS SANTOS IRINEU':'CÍNTIA DOS SANTOS IRINEU',
 }
+
+
+def limpar_colunas(df):
+    """Remove espaços extras, quebras de linha e normaliza nomes de colunas."""
+    df.columns = df.columns.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
+    return df
 
 
 def tratar_nomes_nutri(df, coluna='Nutri'):
@@ -86,29 +94,35 @@ def carregar_input_a_historico():
     """Lê a aba 'Oferta' do arquivo histórico e converte para o formato esperado."""
     print("  📄 Lendo Input A (Oferta)...")
     df = pd.read_excel(FILE_OPTUM, sheet_name='Oferta')
+    df = limpar_colunas(df)
 
     out = pd.DataFrame()
-    out['Data completa'] = df['Data completa'].copy()
-    out["Data"] = out["Data completa"].str.split(" -").str[0]
-    out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
-    out['Ano']     = out["Data"].dt.year
-    out['Mês_num'] = out["Data"].dt.month
-    out['Mês']     = out['Mês_num']
-    out['DDS']     = df['DDS'].copy()
+    if 'Data completa' in df.columns:
+        out['Data completa'] = df['Data completa'].copy()
+        out["Data"] = out["Data completa"].str.split(" -").str[0]
+        out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
+        out['Ano']     = out["Data"].dt.year
+        out['Mês_num'] = out["Data"].dt.month
+        out['Mês']     = out['Mês_num']
+        out['DDS']     = df['DDS'].copy() if 'DDS' in df.columns else ""
 
-    # Converter horários
-    out['Início'] = pd.to_datetime(df['Início'], format="%H:%M:%S", errors="coerce")
-    out['Fim']    = pd.to_datetime(df['Fim'], format="%H:%M:%S", errors="coerce")
-    out["Total horas"] = (out["Fim"] - out["Início"]).apply(
-        lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
-    out["Janelas"] = (out["Fim"] - out["Início"]).dt.total_seconds() / 3600
-    out["Janelas"] = out["Janelas"].astype(int, errors='ignore')
-    out["Início"]  = out["Início"].dt.time
-    out["Fim"]     = out["Fim"].dt.time
-    out['Nutri']   = df['Nutri'].str.strip().str.upper()
-    out.drop(columns=['Mês_num'], inplace=True)
-    out = label_semana(out)
-    out['Mês'] = out['Data'].dt.month
+        # Converter horários
+        if 'Início' in df.columns and 'Fim' in df.columns:
+            out['Início'] = pd.to_datetime(df['Início'], format="%H:%M:%S", errors="coerce")
+            out['Fim']    = pd.to_datetime(df['Fim'], format="%H:%M:%S", errors="coerce")
+            out["Total horas"] = (out["Fim"] - out["Início"]).apply(
+                lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
+            out["Janelas"] = (out["Fim"] - out["Início"]).dt.total_seconds() / 3600
+            out["Janelas"] = out["Janelas"].astype(int, errors='ignore')
+            out["Início"]  = out["Início"].dt.time
+            out["Fim"]     = out["Fim"].dt.time
+        
+        out['Nutri'] = df['Nutri'].astype(str).str.strip().str.upper() if 'Nutri' in df.columns else "N/D"
+        out = label_semana(out)
+        out['Mês'] = out['Data'].dt.month
+    else:
+        # Retorno de DataFrame vazio com colunas esperadas
+        return pd.DataFrame(columns=['Data','Ano','Mês','Nutri','Janelas','Semana_label'])
 
     print(f"    ✅ {len(out)} linhas carregadas")
     return out
@@ -118,6 +132,9 @@ def carregar_input_d_historico():
     """Lê a aba 'Banco Optum tratado' do arquivo histórico."""
     print("  📄 Lendo Input D (Banco Optum tratado)...")
     df = pd.read_excel(FILE_OPTUM, sheet_name='Banco Optum tratado')
+    
+    # 1. Higienizar nomes das colunas
+    df = limpar_colunas(df)
 
     # Mapear colunas do histórico para o formato esperado pelo ETL
     rename_map = {
@@ -139,7 +156,7 @@ def carregar_input_d_historico():
     df = label_semana(df)
     df['Ano']  = df['Data'].dt.year
     df['Mês']  = df['Data'].dt.month
-    df['Nutri'] = df['Nutri'].str.strip().str.upper()
+    df['Nutri'] = df['Nutri'].astype(str).str.strip().str.upper() if 'Nutri' in df.columns else "N/D"
     df = tratar_nomes_nutri(df, 'Nutri')
 
     print(f"    ✅ {len(df)} linhas carregadas")
@@ -154,38 +171,37 @@ def carregar_input_e_historico():
     for filepath in FILES_E:
         nome = os.path.basename(filepath)
         try:
-            df_head = pd.read_excel(filepath, skiprows=2, nrows=0,
-                                     sheet_name='Controle atendimentos')
-            cols_encontradas = df_head.columns.tolist()
+            df = pd.read_excel(filepath, skiprows=2, sheet_name='Controle atendimentos')
+            df = limpar_colunas(df)
 
-            # Colunas esperadas
-            COLUNAS_E = ['Data ', 'Nutri ', 'ID caso',
-                         'Status atendimento \n(Realizado, Falta, Reagendou)']
+            # Colunas esperadas (com Regex/Replace já estão limpas de \n e espaços extras)
+            COLUNAS_E = ['Data', 'Nutri', 'ID caso',
+                         'Status atendimento (Realizado, Falta, Reagendou)']
 
-            if all(c in cols_encontradas for c in COLUNAS_E):
-                df = pd.read_excel(filepath, skiprows=2, usecols=COLUNAS_E,
-                                    sheet_name='Controle atendimentos')
+            # Verificar se as colunas essenciais estão lá
+            if all(c in df.columns for c in COLUNAS_E):
+                df = df[COLUNAS_E].copy()
                 df["Arquivo"] = nome
                 frames.append(df)
                 print(f"    ✅ {nome}: {len(df)} linhas")
             else:
-                faltando = [c for c in COLUNAS_E if c not in cols_encontradas]
+                faltando = [c for c in COLUNAS_E if c not in df.columns]
                 print(f"    ⚠️ {nome}: Colunas faltando: {faltando}")
         except Exception as e:
             print(f"    ❌ {nome}: Erro: {e}")
 
     if not frames:
         print("    ⚠️ Nenhum arquivo E processado")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['Data', 'Nutri', 'ID caso', 'Status atendimento', 'Ano', 'Mês'])
 
     df_all = pd.concat(frames, ignore_index=True)
-    df_all = df_all[~df_all['Data '].isnull()].copy()
-    df_all.rename(columns={'Data ': 'Data', 'Nutri ': 'Nutri'}, inplace=True)
+    df_all = df_all[~df_all['Data'].isnull()].copy()
+    # Nomes já estão limpos após o strip
     df_all["Data"] = pd.to_datetime(df_all["Data"], errors="coerce")
     df_all = label_semana(df_all)
     df_all['Ano']  = df_all['Data'].dt.year
     df_all['Mês']  = df_all['Data'].dt.month
-    df_all['Nutri'] = df_all['Nutri'].str.strip().str.upper()
+    df_all['Nutri'] = df_all['Nutri'].astype(str).str.strip().str.upper()
     df_all = tratar_nomes_nutri(df_all, 'Nutri')
 
     print(f"    ✅ Total E: {len(df_all)} linhas")
@@ -217,70 +233,71 @@ def build_output_c(df_a, df_d):
 
 
 def build_output_f(df_a, df_d, df_e):
-    of = df_a.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Janelas'].sum()
+    of = df_a.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Janelas'].sum() if not df_a.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Oferta'])
     of.rename(columns={'Janelas':'Oferta'}, inplace=True)
 
-    oc = df_d.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count()
+    oc = df_d.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count() if not df_d.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Ocupação'])
     oc.rename(columns={'Número do caso':'Ocupação'}, inplace=True)
 
-    re_ = df_e.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['ID caso'].count()
-    re_.rename(columns={'ID caso':'Realizado'}, inplace=True)
+    # Lógica segura para o DF de Planilhas (E)
+    if not df_e.empty and 'Nutri' in df_e.columns:
+        re_ = df_e.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['ID caso'].count()
+        re_.rename(columns={'ID caso':'Realizado'}, inplace=True)
+    else:
+        re_ = pd.DataFrame(columns=['Nutri','Ano','Mês','Realizado'])
 
-    df_f = of.merge(oc, on=['Nutri','Ano','Mês'], how='outer', validate='1:1')
-    df_f = df_f.merge(re_, on=['Nutri','Ano','Mês'], how='outer', validate='1:1')
+    df_f = of.merge(oc, on=['Nutri','Ano','Mês'], how='outer')
+    df_f = df_f.merge(re_, on=['Nutri','Ano','Mês'], how='outer')
     df_f = df_f.fillna(0)
     df_f["% Ocupação"]  = (df_f["Ocupação"]  / df_f["Oferta"] ).replace([np.inf, np.nan], 0) * 100
     df_f["% Realizado"] = (df_f["Realizado"] / df_f["Ocupação"]).replace([np.inf, np.nan], 0) * 100
 
     cols_num = ['Oferta','Ocupação','Realizado']
     df_f = df_f[~(df_f[cols_num] == 0).all(axis=1)]
-    df_f = df_f[~((df_f[['Ano','Mês']] == 0).all(axis=1) & (df_f[cols_num] > 0).any(axis=1))]
-    df_f['Ano'] = df_f['Ano'].astype(int)
-    df_f['Mês'] = df_f['Mês'].astype(int)
+    df_f['Ano'] = pd.to_numeric(df_f['Ano'], errors='coerce').fillna(0).astype(int)
+    df_f['Mês'] = pd.to_numeric(df_f['Mês'], errors='coerce').fillna(0).astype(int)
     df_f = df_f.sort_values(['Ano','Mês','Nutri'])
     return df_f
 
 
 def build_output_g(df_d, df_e):
+    """Output G: faturamento por status de sessão + check com planilhas nutris"""
     df_g_raw = df_d.copy()
 
-    # Garantir que a coluna 'Valor Unitário' existe e é numérica
-    if 'Valor Unitário' not in df_g_raw.columns:
-        df_g_raw['Valor Unitário'] = 0.0
-    df_g_raw['Valor Unitário'] = (
-        df_g_raw['Valor Unitário']
-            .astype(str)
+    # 1. Obter valor do faturamento estritamente do Input D ('Valor atendimento' ou 'Valor Unitário')
+    val_col_d = None
+    if 'Valor atendimento' in df_g_raw.columns and df_g_raw['Valor atendimento'].notnull().any():
+        val_col_d = 'Valor atendimento'
+    elif 'Valor Unitário' in df_g_raw.columns and df_g_raw['Valor Unitário'].notnull().any():
+        val_col_d = 'Valor Unitário'
+        
+    if val_col_d:
+        df_g_raw['Valor_Real'] = (
+            df_g_raw[val_col_d].astype(str)
             .str.replace("R$", "", regex=False)
             .str.replace(".", "", regex=False)
             .str.replace(",", ".", regex=False)
             .str.strip()
-    )
-    df_g_raw['Valor Unitário'] = pd.to_numeric(df_g_raw['Valor Unitário'], errors='coerce').fillna(0)
+        )
+        df_g_raw['Valor_Real'] = pd.to_numeric(df_g_raw['Valor_Real'], errors='coerce').fillna(0)
+    else:
+        df_g_raw['Valor_Real'] = 0.0
 
-    # Garantir que 'Status sessão' existe
+    # 2. Garantir 'Status sessão' para o pivot
     if 'Status sessão' not in df_g_raw.columns:
         df_g_raw['Status sessão'] = 'N/D'
 
-    # Garantir que 'Número do caso' existe
-    if 'Número do caso' not in df_g_raw.columns:
-        df_g_raw['Número do caso'] = range(len(df_g_raw))
+    # 3. Pivot Table
+    df_g = df_g_raw.pivot_table(
+        index=['Mês','Nutri'], columns='Status sessão',
+        aggfunc={'Número do caso':'count','Valor_Real':'sum'},
+        fill_value=0, dropna=False
+    )
+    
+    # Renomear nível para 'Valor Unitário' para manter compatibilidade com banco/telas
+    df_g = df_g.rename(columns={'Valor_Real': 'Valor Unitário'}, level=0)
 
-    try:
-        df_g = df_g_raw.pivot_table(
-            index=['Mês','Nutri'], columns='Status sessão',
-            aggfunc={'Número do caso':'count','Valor Unitário':'sum'},
-            fill_value=0, dropna=False
-        )
-    except Exception:
-        # Fallback: apenas contagem por Status
-        df_g = df_g_raw.pivot_table(
-            index=['Mês','Nutri'], columns='Status sessão',
-            aggfunc={'Número do caso':'count'},
-            fill_value=0, dropna=False
-        )
-        df_g['Valor Unitário'] = 0
-
-    df_g['Total Agendamentos'] = df_g['Número do caso'].sum(axis=1)
+    df_g['Total Agendamentos'] = df_g['Número do caso'].sum(axis=1) if 'Número do caso' in df_g.columns else 0
     df_g['Total Faturamento']  = df_g['Valor Unitário'].sum(axis=1) if 'Valor Unitário' in df_g.columns else 0
 
     if not df_e.empty:
@@ -288,7 +305,6 @@ def build_output_g(df_d, df_e):
             tb = df_e.groupby(['Mês','Nutri'], dropna=False, as_index=False)[['ID caso']].count()
             tb.rename(columns={'ID caso':'Planilhas'}, inplace=True)
             df_left = df_g[['Total Agendamentos']].reset_index()
-            df_left.columns = ['Mês','Nutri','Total Agendamentos']
             tb = df_left.merge(tb, on=['Mês','Nutri'], how='left')
             tb['Check'] = tb['Total Agendamentos'] == tb['Planilhas']
             tb['Check'] = tb['Check'].map({False:'⚠️ Not OK', True:'✅ OK'})

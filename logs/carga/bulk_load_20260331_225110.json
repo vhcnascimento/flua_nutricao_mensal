@@ -1,0 +1,203 @@
+{
+  "execucao": "2026-03-31T22:51:10.592257",
+  "duracao_segundos": 0.5,
+  "operador": "vhcna",
+  "fontes": {
+    "optum": "C:\\Users\\vhcna\\OneDrive - Marca Saúde\\Área de Trabalho\\Freelas\\Flua nutrição\\flua_git\\flua_nutricao_mensal\\data\\mensal\\06 Histórico Extração Optum Tratada.xlsx",
+    "controles": [
+      "002 Controle de atendimentos_Bia.xlsx",
+      "02 Controle de atendimentos_AnaLu.xlsx",
+      "02 Controle de atendimentos_Andreia.xlsx",
+      "02 Controle de atendimentos_Cintia.xlsx",
+      "02 Controle de atendimentos_Danielle.xlsx",
+      "02 Controle de atendimentos_Isa.xlsx",
+      "02 Controle de atendimentos_Juliana.xlsx",
+      "02 Controle de atendimentos_Manoela.xlsx",
+      "02 Controle de atendimentos_Neto.xlsx",
+      "02 Controle de atendimentos_Stephany.xlsx"
+    ]
+  },
+  "sobrescreveu": true,
+  "resumo": {
+    "total_ok": 0,
+    "total_pulados": 0,
+    "total_erros": 25
+  },
+  "periodos": [
+    {
+      "periodo": "Abr/2024",
+      "ano": 2024,
+      "mes": 4,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Mai/2024",
+      "ano": 2024,
+      "mes": 5,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jun/2024",
+      "ano": 2024,
+      "mes": 6,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jul/2024",
+      "ano": 2024,
+      "mes": 7,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Ago/2024",
+      "ano": 2024,
+      "mes": 8,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Set/2024",
+      "ano": 2024,
+      "mes": 9,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Out/2024",
+      "ano": 2024,
+      "mes": 10,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Nov/2024",
+      "ano": 2024,
+      "mes": 11,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Dez/2024",
+      "ano": 2024,
+      "mes": 12,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jan/2025",
+      "ano": 2025,
+      "mes": 1,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Fev/2025",
+      "ano": 2025,
+      "mes": 2,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Mar/2025",
+      "ano": 2025,
+      "mes": 3,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Abr/2025",
+      "ano": 2025,
+      "mes": 4,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Mai/2025",
+      "ano": 2025,
+      "mes": 5,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jun/2025",
+      "ano": 2025,
+      "mes": 6,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jul/2025",
+      "ano": 2025,
+      "mes": 7,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Ago/2025",
+      "ano": 2025,
+      "mes": 8,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Set/2025",
+      "ano": 2025,
+      "mes": 9,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Out/2025",
+      "ano": 2025,
+      "mes": 10,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Nov/2025",
+      "ano": 2025,
+      "mes": 11,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Dez/2025",
+      "ano": 2025,
+      "mes": 12,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Jan/2026",
+      "ano": 2026,
+      "mes": 1,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Fev/2026",
+      "ano": 2026,
+      "mes": 2,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Mar/2026",
+      "ano": 2026,
+      "mes": 3,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    },
+    {
+      "periodo": "Abr/2026",
+      "ano": 2026,
+      "mes": 4,
+      "status": "erro",
+      "motivo": "'Nutri'"
+    }
+  ]
+}

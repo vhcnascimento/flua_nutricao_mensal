@@ -238,7 +238,57 @@ def processar_input_d(file_objs):
     for f in file_objs:
         nome = f.name
         try:
-            df = pd.read_excel(f, usecols=COLS_D)
+            # Lemos a primeira linha para identificar as colunas presentes
+            df_cols = pd.read_excel(f, nrows=0)
+            
+            # Criamos um mapa para os nomes originais (que serão lidos no usecols) 
+            # retirando eventuais espaços extras do cabeçalho
+            orig_columns = list(df_cols.columns)
+            stripped_columns = [str(c).strip() for c in orig_columns]
+            
+            cols_found = stripped_columns
+
+            # Mapeamento do "Banco Optum tratado" para o formato esperado pelo app_mensal
+            rename_map = {
+                'ID caso':           'Número do caso',
+                'Nome cliente':      'Beneficiário',
+                'Empresa':           'Empresa',
+                'Data inicial do caso': 'Data inicial do caso',
+                'Status do caso':    'Status do caso',
+                'Tipo medida tomada':'Tipo medida tomada',
+                'Nutri':             'Responsável',
+                'Data sessão':       'Data sessão', # mantemos este por enquanto (depois vira Data)
+                'Tempo atendimento': 'Tempo atendimento',
+                'Status atendimento':'Status sessão',
+                'Valor atendimento': 'Valor Unitário',
+            }
+
+            usecols_orig = []
+            final_renames = {}
+            for target_col in COLS_D:
+                if target_col in cols_found:
+                    idx = cols_found.index(target_col)
+                    usecols_orig.append(orig_columns[idx])
+                    final_renames[orig_columns[idx]] = target_col
+                else:
+                    possible_sources = [k for k, v in rename_map.items() if v == target_col]
+                    for src in possible_sources:
+                        if src in cols_found:
+                            idx = cols_found.index(src)
+                            usecols_orig.append(orig_columns[idx])
+                            final_renames[orig_columns[idx]] = target_col
+                            break
+            
+            # Pandas aceita a lista exata dos nomes sem strip
+            df = pd.read_excel(f, usecols=usecols_orig)
+            df = df.rename(columns=final_renames)
+            
+            # Garantir que todas as colunas de COLS_D pelo menos existam (como NaN se faltar) 
+            # para evitar KeyError na frente
+            for c in COLS_D:
+                if c not in df.columns:
+                    df[c] = None
+            
             frames.append(df)
             logs.append(("OK", nome, ""))
         except Exception as e:
@@ -253,7 +303,7 @@ def processar_input_d(file_objs):
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
-    df_all['Nutri'] = df_all['Nutri'].str.strip().str.upper()
+    df_all['Nutri'] = df_all['Nutri'].astype(str).str.strip().str.upper()
     df_all = tratar_nomes_nutri(df_all, 'Nutri')
     return df_all, logs
 
@@ -269,8 +319,21 @@ def processar_input_e(file_objs):
             df_head = pd.read_excel(f, skiprows=2, nrows=0, sheet_name='Controle atendimentos')
             cols_encontradas = df_head.columns.tolist()
             if all(c in cols_encontradas for c in COLUNAS_E):
-                df = pd.read_excel(f, skiprows=2, usecols=COLUNAS_E, sheet_name='Controle atendimentos')
+                
+                # Se o usuário também inserir o Valor atendimento nessa aba, vamos pegar
+                cols_to_use = COLUNAS_E.copy()
+                if 'Valor atendimento' in cols_encontradas:
+                    cols_to_use.append('Valor atendimento')
+                elif 'Valor Unitário' in cols_encontradas:
+                    cols_to_use.append('Valor Unitário')
+                    
+                df = pd.read_excel(f, skiprows=2, usecols=cols_to_use, sheet_name='Controle atendimentos')
                 df["Arquivo"] = nome
+                
+                # Para unificar se for necessário no build_output_g
+                if 'Valor Unitário' in df.columns and 'Valor atendimento' not in df.columns:
+                    df = df.rename(columns={'Valor Unitário': 'Valor atendimento'})
+                    
                 frames.append(df)
                 logs.append(("OK", nome, ""))
             else:
@@ -363,23 +426,37 @@ def build_output_f(df_a, df_d, df_e):
 
 def build_output_g(df_d, df_e):
     """Output G: faturamento por status de sessão + check com planilhas nutris"""
-    df_g = df_d.copy()
-    df_g['Valor Unitário'] = (
-        df_g["Valor Unitário"]
-            .astype(str)
+    df_g_raw = df_d.copy()
+    
+    # 1. Obter valor do faturamento estritamente do Input D ('Valor atendimento' ou 'Valor Unitário')
+    val_col_d = None
+    if 'Valor atendimento' in df_g_raw.columns and df_g_raw['Valor atendimento'].notnull().any():
+        val_col_d = 'Valor atendimento'
+    elif 'Valor Unitário' in df_g_raw.columns and df_g_raw['Valor Unitário'].notnull().any():
+        val_col_d = 'Valor Unitário'
+        
+    if val_col_d:
+        df_g_raw['Valor_Real'] = (
+            df_g_raw[val_col_d].astype(str)
             .str.replace("R$", "", regex=False)
             .str.replace(".", "", regex=False)
             .str.replace(",", ".", regex=False)
             .str.strip()
-    )
-    df_g['Valor Unitário'] = pd.to_numeric(df_g['Valor Unitário'], errors='coerce').fillna(0)
+        )
+        df_g_raw['Valor_Real'] = pd.to_numeric(df_g_raw['Valor_Real'], errors='coerce').fillna(0)
+    else:
+        df_g_raw['Valor_Real'] = 0.0
 
     # Adicionando Ano ao index para suportar ranges de datas
-    df_g = df_g.pivot_table(
+    df_g = df_g_raw.pivot_table(
         index=['Ano','Mês','Nutri'], columns='Status sessão',
-        aggfunc={'Número do caso':'count','Valor Unitário':'sum'},
+        aggfunc={'Número do caso':'count','Valor_Real':'sum'},
         fill_value=0, dropna=False
     )
+    
+    # Renomear nível da coluna para bater com o padrão exigido nas telas e no backend
+    df_g = df_g.rename(columns={'Valor_Real': 'Valor Unitário'}, level=0)
+    
     df_g['Total Agendamentos'] = df_g['Número do caso'].sum(axis=1)
     df_g['Total Faturamento']  = df_g['Valor Unitário'].sum(axis=1)
 
