@@ -82,3 +82,15 @@ Os dados são ingeridos na nuvem de modo a simplificar o consumo do web-app.
     - `output_c` (Comparecimento Nutris vs Geral)
     - `output_f` (Taxas convertidas Oferta vs Ocupação vs Realizado e seus percentuais)
     - `output_g` (Resumo Tabela de Faturamento R$, cruzando contagem de status do Input E vs Agendamento Optum e exibindo checagem emoji de auditoria das planilhas das Nutris)
+
+---
+
+## 🎨 5. Design e Interface (UI)
+
+O aplicativo preza por uma estética **Premium** e **Moderna**, distanciando-se do layout padrão do Streamlit através de CSS customizado.
+
+### 5.1 KPI Cards Customizados
+Em vez do `st.metric`, o dashboard utiliza uma função helper `kpi_card` que gera HTML/CSS para exibir indicadores.
+- **Flexbox**: Os cards são organizados em um container `.kpi-wrapper` com `display: flex`. Isso permite um grid responsivo e alinhamento superior ao sistema de colunas nativo.
+- **Tematização**: O uso de **CSS Custom Properties** (ex: `--card-color`) permite que cada card tenha uma cor de acento associada ao seu significado (ex: Verde para "Realizado", Amarelo para "Atenção/Ocupação").
+- **Visual Excellence**: Qualquer nova métrica de destaque deve seguir este padrão para manter a "Wow Experience" do usuário.

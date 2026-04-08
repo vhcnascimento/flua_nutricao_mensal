@@ -67,41 +67,79 @@ st.markdown("""
         border-left: 6px solid #eb4524;
         color: #7a1515;
     }
+    .kpi-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        justify-content: center;
+        margin: 1.5rem 0;
+    }
     .kpi-card {
         background: #ffffff;
-        border-radius: 14px;
-        padding: 1.2rem 1rem;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+        border-radius: 16px;
+        padding: 1.5rem 1rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         text-align: center;
-        height: 100%;
-        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        min-width: 160px;
+        flex: 1 1 180px;
+        max-width: 220px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid rgba(0,0,0,0.03);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        position: relative;
+        overflow: hidden;
+    }
+    .kpi-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 5px;
+        background: var(--card-color, #aab7b8);
     }
     .kpi-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 18px rgba(0,0,0,0.11);
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+        border-color: var(--card-color, #aab7b8);
     }
     .kpi-icon {
-        font-size: 1.6rem;
-        margin-bottom: 0.25rem;
+        font-size: 1.8rem;
+        margin-bottom: 0.5rem;
+        filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
     }
     .kpi-label {
-        font-size: 0.72rem;
+        font-size: 0.75rem;
         font-weight: 700;
-        letter-spacing: 0.07em;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
         color: #7f8c8d;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.8rem;
+        height: 2.2em;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
     .kpi-value {
-        font-size: 1.9rem;
+        font-size: clamp(1.4rem, 2.5vw, 1.8rem);
         font-weight: 800;
         color: #044851;
         line-height: 1.1;
-        margin-bottom: 0.4rem;
+        margin-bottom: 0.5rem;
+        white-space: nowrap;
     }
-    .kpi-delta-pos { font-size: 0.8rem; font-weight: 600; color: #27ae60; }
-    .kpi-delta-neg { font-size: 0.8rem; font-weight: 600; color: #eb4524; }
-    .kpi-delta-neu { font-size: 0.8rem; font-weight: 600; color: #7f8c8d; }
+    .kpi-value .currency {
+        font-size: 0.6em;
+        font-weight: 600;
+        margin-right: 0.1rem;
+        color: #7f8c8d;
+    }
+    .kpi-delta-pos { font-size: 0.85rem; font-weight: 700; color: #27ae60; background: #e8f7ef; padding: 2px 8px; border-radius: 12px; }
+    .kpi-delta-neg { font-size: 0.85rem; font-weight: 700; color: #eb4524; background: #fde8e8; padding: 2px 8px; border-radius: 12px; }
+    .kpi-delta-neu { font-size: 0.85rem; font-weight: 700; color: #7f8c8d; }
 
     /* Estilização dos botões de download (Excel) */
     .stDownloadButton button {
@@ -1081,38 +1119,41 @@ elif st.session_state.current_step == 2:
                     delta_html = f'<div class="{css}">{arrow} {delta_text}</div>'
                 else:
                     delta_html = '<div class="kpi-delta-neu">&nbsp;</div>'
-                return f"""
-                <div class="kpi-card" style="border-top: 4px solid {color};">
-                    <div class="kpi-icon">{icon}</div>
-                    <div class="kpi-label">{label}</div>
-                    <div class="kpi-value">{value}</div>
-                    {delta_html}
-                </div>"""
+                
+                # Tratar R$ para ficar menor e evitar quebra
+                if isinstance(value, str) and "R$" in value:
+                    value = value.replace("R$", '<span class="currency">R$</span>')
+
+                return f"""<div class="kpi-card" style="--card-color: {color};">
+<div class="kpi-icon">{icon}</div>
+<div class="kpi-label">{label}</div>
+<div class="kpi-value">{value}</div>
+{delta_html}
+</div>"""
 
             delta_ocup = tx_ocup - 80
-            cols = st.columns(7)
-            kpis = [
-                (cols[0], kpi_card("Oferta Total",     fmt_num(oferta_t),     "📦", "#66cbdd")),
-                (cols[1], kpi_card("Ocupação Total",   fmt_num(ocupacao_t),   "📅", "#044851")),
-                (cols[2], kpi_card("Realizado Total",  fmt_num(realizado_t),  "✅", "#c3d76b")),
-                (cols[3], kpi_card("Faturamento",      fmt_val(faturamento),  "💰", "#c3d76b")),
-                (cols[4], kpi_card("Taxa de Ocupação", fmt_pct(tx_ocup),      "📊", "#fcc105",
-                                   fmt_pct(abs(delta_ocup)), delta_ocup >= 0)),
-                (cols[5], kpi_card("Taxa Realização",  fmt_pct(tx_real),      "🎯", "#fcc105")),
-                (cols[6], kpi_card(
-                    "Meta Agendamentos",
-                    fmt_num(meta) if meta > 0 else "—",
-                    "🏁", "#aab7b8",
-                    *(
-                        (f"{abs(((realizado_t/meta)-1)*100):.1f}% da meta".replace(".", ","),
-                         realizado_t >= meta)
-                        if meta > 0 else (None, None)
-                    )
-                )),
-            ]
-            for col, html in kpis:
-                with col:
-                    st.markdown(html, unsafe_allow_html=True)
+            
+            # Montar o grid de KPIs em HTML para usar Flexbox (removendo indentação para evitar bloco de código no Streamlit)
+            html_kpis = f"""<div class="kpi-wrapper">
+{kpi_card("Oferta Total",     fmt_num(oferta_t),     "📦", "#66cbdd")}
+{kpi_card("Ocupação Total",   fmt_num(ocupacao_t),   "📅", "#044851")}
+{kpi_card("Realizado Total",  fmt_num(realizado_t),  "✅", "#c3d76b")}
+{kpi_card("Faturamento",      fmt_val(faturamento),  "💰", "#2ecc71")}
+{kpi_card("Taxa de Ocupação", fmt_pct(tx_ocup),      "📊", "#fcc105", 
+          fmt_pct(abs(delta_ocup)), delta_ocup >= 0)}
+{kpi_card("Taxa Realização",  fmt_pct(tx_real),      "🎯", "#463e8c")}
+{kpi_card(
+    "Meta Agendamentos",
+    fmt_num(meta) if meta > 0 else "—",
+    "🏁", "#aab7b8",
+    *(
+        (f"{abs(((realizado_t/meta)-1)*100):.1f}% da meta".replace(".", ","),
+         realizado_t >= meta)
+        if meta > 0 else (None, None)
+    )
+)}
+</div>"""
+            st.markdown(html_kpis, unsafe_allow_html=True)
 
             # ── Output G — Faturamento ────────────────────────────────────────
             if df_g is not None and not (isinstance(df_g, pd.DataFrame) and df_g.empty):
