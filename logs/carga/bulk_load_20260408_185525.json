@@ -1,0 +1,303 @@
+{
+  "execucao": "2026-04-08T18:55:25.179580",
+  "duracao_segundos": 11.8,
+  "operador": "vhcna",
+  "fontes": {
+    "optum": "c:\\Users\\vhcna\\stranger_things\\Freelas\\Flua\\flua_nutricao_mensal\\data\\mensal\\06 Histórico Extração Optum Tratada.xlsx",
+    "controles": [
+      "002 Controle de atendimentos_Bia.xlsx",
+      "02 Controle de atendimentos_AnaLu.xlsx",
+      "02 Controle de atendimentos_Andreia.xlsx",
+      "02 Controle de atendimentos_Cintia.xlsx",
+      "02 Controle de atendimentos_Danielle.xlsx",
+      "02 Controle de atendimentos_Isa.xlsx",
+      "02 Controle de atendimentos_Juliana.xlsx",
+      "02 Controle de atendimentos_Manoela.xlsx",
+      "02 Controle de atendimentos_Neto.xlsx",
+      "02 Controle de atendimentos_Stephany.xlsx"
+    ]
+  },
+  "sobrescreveu": true,
+  "resumo": {
+    "total_ok": 25,
+    "total_pulados": 0,
+    "total_erros": 0
+  },
+  "periodos": [
+    {
+      "periodo": "Abr/2024",
+      "ano": 2024,
+      "mes": 4,
+      "status": "ok",
+      "linhas_a": 35,
+      "linhas_d": 77,
+      "linhas_e": 38,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Mai/2024",
+      "ano": 2024,
+      "mes": 5,
+      "status": "ok",
+      "linhas_a": 28,
+      "linhas_d": 63,
+      "linhas_e": 33,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jun/2024",
+      "ano": 2024,
+      "mes": 6,
+      "status": "ok",
+      "linhas_a": 37,
+      "linhas_d": 83,
+      "linhas_e": 29,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jul/2024",
+      "ano": 2024,
+      "mes": 7,
+      "status": "ok",
+      "linhas_a": 72,
+      "linhas_d": 136,
+      "linhas_e": 33,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Ago/2024",
+      "ano": 2024,
+      "mes": 8,
+      "status": "ok",
+      "linhas_a": 83,
+      "linhas_d": 146,
+      "linhas_e": 47,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Set/2024",
+      "ano": 2024,
+      "mes": 9,
+      "status": "ok",
+      "linhas_a": 75,
+      "linhas_d": 167,
+      "linhas_e": 50,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Out/2024",
+      "ano": 2024,
+      "mes": 10,
+      "status": "ok",
+      "linhas_a": 88,
+      "linhas_d": 218,
+      "linhas_e": 66,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Nov/2024",
+      "ano": 2024,
+      "mes": 11,
+      "status": "ok",
+      "linhas_a": 131,
+      "linhas_d": 300,
+      "linhas_e": 90,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Dez/2024",
+      "ano": 2024,
+      "mes": 12,
+      "status": "ok",
+      "linhas_a": 170,
+      "linhas_d": 290,
+      "linhas_e": 112,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jan/2025",
+      "ano": 2025,
+      "mes": 1,
+      "status": "ok",
+      "linhas_a": 158,
+      "linhas_d": 314,
+      "linhas_e": 132,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Fev/2025",
+      "ano": 2025,
+      "mes": 2,
+      "status": "ok",
+      "linhas_a": 209,
+      "linhas_d": 432,
+      "linhas_e": 211,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Mar/2025",
+      "ano": 2025,
+      "mes": 3,
+      "status": "ok",
+      "linhas_a": 195,
+      "linhas_d": 406,
+      "linhas_e": 229,
+      "valor_consulta": 80.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Abr/2025",
+      "ano": 2025,
+      "mes": 4,
+      "status": "ok",
+      "linhas_a": 201,
+      "linhas_d": 428,
+      "linhas_e": 286,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Mai/2025",
+      "ano": 2025,
+      "mes": 5,
+      "status": "ok",
+      "linhas_a": 199,
+      "linhas_d": 428,
+      "linhas_e": 306,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jun/2025",
+      "ano": 2025,
+      "mes": 6,
+      "status": "ok",
+      "linhas_a": 203,
+      "linhas_d": 373,
+      "linhas_e": 260,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jul/2025",
+      "ano": 2025,
+      "mes": 7,
+      "status": "ok",
+      "linhas_a": 247,
+      "linhas_d": 601,
+      "linhas_e": 379,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Ago/2025",
+      "ano": 2025,
+      "mes": 8,
+      "status": "ok",
+      "linhas_a": 202,
+      "linhas_d": 518,
+      "linhas_e": 353,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Set/2025",
+      "ano": 2025,
+      "mes": 9,
+      "status": "ok",
+      "linhas_a": 254,
+      "linhas_d": 599,
+      "linhas_e": 410,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Out/2025",
+      "ano": 2025,
+      "mes": 10,
+      "status": "ok",
+      "linhas_a": 281,
+      "linhas_d": 601,
+      "linhas_e": 426,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Nov/2025",
+      "ano": 2025,
+      "mes": 11,
+      "status": "ok",
+      "linhas_a": 239,
+      "linhas_d": 396,
+      "linhas_e": 329,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Dez/2025",
+      "ano": 2025,
+      "mes": 12,
+      "status": "ok",
+      "linhas_a": 178,
+      "linhas_d": 282,
+      "linhas_e": 282,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Jan/2026",
+      "ano": 2026,
+      "mes": 1,
+      "status": "ok",
+      "linhas_a": 190,
+      "linhas_d": 350,
+      "linhas_e": 350,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Fev/2026",
+      "ano": 2026,
+      "mes": 2,
+      "status": "ok",
+      "linhas_a": 221,
+      "linhas_d": 382,
+      "linhas_e": 373,
+      "valor_consulta": 84.0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Mar/2026",
+      "ano": 2026,
+      "mes": 3,
+      "status": "ok",
+      "linhas_a": 254,
+      "linhas_d": 0,
+      "linhas_e": 328,
+      "valor_consulta": 0,
+      "sobrescreveu": true
+    },
+    {
+      "periodo": "Abr/2026",
+      "ano": 2026,
+      "mes": 4,
+      "status": "ok",
+      "linhas_a": 235,
+      "linhas_d": 0,
+      "linhas_e": 0,
+      "valor_consulta": 0,
+      "sobrescreveu": true
+    }
+  ]
+}

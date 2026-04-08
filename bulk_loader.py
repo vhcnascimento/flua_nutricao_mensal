@@ -239,10 +239,11 @@ def build_output_f(df_a, df_d, df_e):
     oc = df_d.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count() if not df_d.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Ocupação'])
     oc.rename(columns={'Número do caso':'Ocupação'}, inplace=True)
 
-    # Lógica segura para o DF de Planilhas (E)
-    if not df_e.empty and 'Nutri' in df_e.columns:
-        re_ = df_e.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['ID caso'].count()
-        re_.rename(columns={'ID caso':'Realizado'}, inplace=True)
+    # Realizado agora vem do Banco Optum D (onde status é Compareceu) e não mais do E
+    df_d_realizado = df_d[df_d['Status sessão'] == 'Compareceu ao atendimento'] if not df_d.empty else pd.DataFrame()
+    if not df_d_realizado.empty and 'Nutri' in df_d_realizado.columns:
+        re_ = df_d_realizado.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count()
+        re_.rename(columns={'Número do caso':'Realizado'}, inplace=True)
     else:
         re_ = pd.DataFrame(columns=['Nutri','Ano','Mês','Realizado'])
 

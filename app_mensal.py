@@ -399,8 +399,9 @@ def build_output_f(df_a, df_d, df_e):
     oc = df_d.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count() if not df_d.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Ocupação'])
     if not df_d.empty: oc.rename(columns={'Número do caso':'Ocupação'}, inplace=True)
 
-    re_ = df_e.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['ID caso'].count() if not df_e.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Realizado'])
-    if not df_e.empty: re_.rename(columns={'ID caso':'Realizado'}, inplace=True)
+    df_d_realizado = df_d[df_d['Status sessão'] == 'Compareceu ao atendimento'] if not df_d.empty else pd.DataFrame()
+    re_ = df_d_realizado.groupby(['Nutri','Ano','Mês'], as_index=False, dropna=False)['Número do caso'].count() if not df_d_realizado.empty else pd.DataFrame(columns=['Nutri','Ano','Mês','Realizado'])
+    if not df_d_realizado.empty: re_.rename(columns={'Número do caso':'Realizado'}, inplace=True)
 
     if of.empty and oc.empty and re_.empty:
         return pd.DataFrame(columns=['Nutri','Ano','Mês','Oferta','Ocupação','Realizado','% Ocupação','% Realizado']), pd.DataFrame()
@@ -516,9 +517,10 @@ def build_graph_dia_semana(df_a, df_d, df_e):
 
     df_i = of.merge(oc, on=['Dia_semana_cod','Dia_semana_desc'], how='outer')
 
-    if not e.empty and 'Dia_semana_cod' in e.columns:
-        re_ = e.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['ID caso'].count()
-        re_.rename(columns={'ID caso':'Realizado'}, inplace=True)
+    if not d.empty and 'Dia_semana_cod' in d.columns:
+        d_realizado = d[d['Status sessão'] == 'Compareceu ao atendimento']
+        re_ = d_realizado.groupby(['Dia_semana_cod','Dia_semana_desc'], as_index=False, dropna=False)['Número do caso'].count() if not d_realizado.empty else pd.DataFrame(columns=['Dia_semana_cod','Dia_semana_desc','Realizado'])
+        if not d_realizado.empty: re_.rename(columns={'Número do caso':'Realizado'}, inplace=True)
         df_i = df_i.merge(re_, on=['Dia_semana_cod','Dia_semana_desc'], how='outer')
     else:
         df_i['Realizado'] = 0
