@@ -304,15 +304,16 @@ def build_output_g(df_d, df_e):
         try:
             tb = df_e.groupby(['Mês','Nutri'], dropna=False, as_index=False)[['ID caso']].count()
             tb.rename(columns={'ID caso':'Planilhas'}, inplace=True)
-            df_left = df_g[['Total Agendamentos']].reset_index()
-            tb = df_left.merge(tb, on=['Mês','Nutri'], how='left')
-            tb['Check'] = tb['Total Agendamentos'] == tb['Planilhas']
-            tb['Check'] = tb['Check'].map({False:'⚠️ Not OK', True:'✅ OK'})
             tb = tb.set_index(['Mês','Nutri'])
-            df_g['Planilhas'] = df_g.index.map(tb['Planilhas'].to_dict())
-            df_g['Check']     = df_g.index.map(tb['Check'].to_dict())
-        except Exception:
-            pass
+            df_g['Planilhas'] = df_g.index.map(tb['Planilhas'].to_dict()).fillna(0)
+            
+            col_agendamentos = 'Total Agendamentos'
+            if col_agendamentos not in df_g.columns and ('Total Agendamentos', '') in df_g.columns:
+                col_agendamentos = ('Total Agendamentos', '')
+                
+            df_g['Check'] = (df_g[col_agendamentos] == df_g['Planilhas']).map({False:'⚠️ Not OK', True:'✅ OK'})
+        except Exception as e:
+            print(f"    ⚠️ Erro ao gerar check de planilhas: {e}")
 
     # Flatten colunas multi-level (ex: ('Número do caso', 'Realizado') -> 'Número do caso - Realizado')
     df_g.columns = [

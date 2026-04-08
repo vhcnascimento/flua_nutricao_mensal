@@ -464,17 +464,17 @@ def build_output_g(df_d, df_e):
     if not df_e.empty:
         tb = df_e.groupby(['Ano','Mês','Nutri'], dropna=False, as_index=False)[['ID caso']].count()
         tb.rename(columns={'ID caso':'Planilhas'}, inplace=True)
-        # Reset index de df_g para facilitar o merge
-        df_left = df_g[['Total Agendamentos']].reset_index()
-        # df_left já terá as colunas Ano, Mês, Nutri, Total Agendamentos
-        tb = df_left.merge(tb, on=['Ano','Mês','Nutri'], how='left')
-        tb['Check'] = tb['Total Agendamentos'] == tb['Planilhas']
-        tb['Check'] = tb['Check'].map({False:'⚠️ Not OK', True:'✅ OK'})
         
-        # Mapear de volta para df_g usando o index triplo
+        # Mapear direto para o df_g usando o index triplo
         tb = tb.set_index(['Ano','Mês','Nutri'])
-        df_g['Planilhas'] = df_g.index.map(tb['Planilhas'].to_dict())
-        df_g['Check']     = df_g.index.map(tb['Check'].to_dict())
+        df_g['Planilhas'] = df_g.index.map(tb['Planilhas'].to_dict()).fillna(0)
+        
+        # Calcular o check verificando a igualdade de agendamentos e planilhas
+        col_agendamentos = 'Total Agendamentos'
+        if col_agendamentos not in df_g.columns and ('Total Agendamentos', '') in df_g.columns:
+            col_agendamentos = ('Total Agendamentos', '')
+            
+        df_g['Check'] = (df_g[col_agendamentos] == df_g['Planilhas']).map({False:'⚠️ Not OK', True:'✅ OK'})
 
     return df_g
 
