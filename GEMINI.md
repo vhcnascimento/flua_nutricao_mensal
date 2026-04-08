@@ -31,11 +31,13 @@ O sistema lida com o cruzamento de relatórios da operação da coordenação vs
    - **Função**: Determinar o total de *Janelas* e horas disponibilizadas pelos profissionais.
 2. **Input D (Banco Optum Tratado)**
    - **Origem**: Arquivo Optum Tratada (Aba "Banco Optum tratado").
-   - **Função**: Contém o tracking dos agendamentos oficiais do benefício. É de onde calculamos a métrica de **Ocupação**.
+   - **Função**: Contém o tracking dos agendamentos oficiais do benefício.
+   - > 🎯 **Source of Truth**: É de onde calculamos as métricas de **Ocupação** e **Realizado** (onde Status sessão == "Compareceu ao atendimento").
    - > ⚠️ **CRÍTICO - Faturamento**: A coluna `Valor atendimento` ou `Valor Unitário` do Input D é a **ÚNICA** fonte da verdade para o Faturamento. O Input E (da Nutri) NUNCA ditará valor em Reais a ser pago nos outputs F e G.
 3. **Input E (Controle das Nutris)**
    - **Origem**: Multiplos relatórios preenchidos pelas nutricionistas (`Controle atendimentos...xlsx`).
-   - **Função**: Auditoria do que o paciente fez de fato: `Realizado`, `Falta` ou `Reagendou`. Se baseia na contagem de IDs destas abas.
+   - **Função**: **Auditoria e Batimento**. Serve para conferir se o que a nutricionista registrou em sua planilha individual condiz com os agendamentos registrados no Banco Optum (Input D).
+   - > 📊 **Check**: Gera a coluna "Check" e "Planilhas" no Output G, mas não é a base para o KPI primário de Realizados.
 
 ---
 
@@ -58,6 +60,12 @@ Nunca utilize apenas `df.columns.str.strip()` caso a string contenha newlines `\
 ### 3.2 KeyErrors de Planilhas Inexistentes (DataFrame Vazio)
 Ao rodar agrupamentos do Pandas em dicionários de dados mesclados, sempre preveja que pode haver meses em que as Nutris "esqueceram" de subir o Input E ou que não rodamos dados operacionais para aquela pessoa.
 - Antes de um `.groupby` sobre um DF, sempre valide `if not df_e_mes.empty:` ou retorne dataframes simulados vazios `pd.DataFrame(columns=[...])`.
+
+### 3.3 Lógica da Coluna Check (Auditoria D vs E)
+A coluna `Check` no Output G é a principal ferramenta de integridade de dados.
+- **Cálculo**: `Total Agendamentos (Input D) == Contagem de IDs (Input E)`.
+- Se os valores divergirem, o sistema exibirá `⚠️ Not OK`. Isso geralmente indica que a Nutri esqueceu de registrar um atendimento em sua planilha pessoal ou que há um erro na extração do Optum.
+- **Paridade**: Esta lógica deve ser idêntica tanto no `app_mensal.py` quanto no `bulk_loader.py`.
 
 ---
 
