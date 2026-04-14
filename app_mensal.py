@@ -1102,14 +1102,10 @@ elif st.session_state.current_step == 2:
             tx_ocup     = (ocupacao_t / oferta_t * 100) if oferta_t > 0 else 0
             tx_real     = (realizado_t / ocupacao_t * 100) if ocupacao_t > 0 else 0
 
-            if st.session_state.custo_nutri_mes > 0 and st.session_state.valor_consulta > 0:
-                meta = int(np.ceil(st.session_state.custo_nutri_mes *
-                                   (1 + st.session_state.impostos/100) /
-                                   st.session_state.valor_consulta))
-            else:
-                meta = 0
+            # Nova regra: Meta Faturamento = ceil(Oferta Total * 0.8) * 84
+            meta_faturamento = int(np.ceil(oferta_t * 0.8) * 84)
 
-            faturamento = realizado_t * st.session_state.valor_consulta if st.session_state.valor_consulta > 0 else 0
+            faturamento = ocupacao_t * st.session_state.valor_consulta if st.session_state.valor_consulta > 0 else 0
 
             def kpi_card(label, value, icon, color, delta_text=None, delta_positive=None):
                 """Retorna HTML de um card KPI estilizado."""
@@ -1138,18 +1134,18 @@ elif st.session_state.current_step == 2:
 {kpi_card("Oferta Total",     fmt_num(oferta_t),     "📦", "#66cbdd")}
 {kpi_card("Ocupação Total",   fmt_num(ocupacao_t),   "📅", "#044851")}
 {kpi_card("Realizado Total",  fmt_num(realizado_t),  "✅", "#c3d76b")}
-{kpi_card("Faturamento",      fmt_val(faturamento),  "💰", "#2ecc71")}
 {kpi_card("Taxa de Ocupação", fmt_pct(tx_ocup),      "📊", "#fcc105", 
           fmt_pct(abs(delta_ocup)), delta_ocup >= 0)}
 {kpi_card("Taxa Realização",  fmt_pct(tx_real),      "🎯", "#463e8c")}
+{kpi_card("Meta Faturamento", fmt_val(meta_faturamento), "🏁", "#aab7b8")}
 {kpi_card(
-    "Meta Agendamentos",
-    fmt_num(meta) if meta > 0 else "—",
-    "🏁", "#aab7b8",
+    "Faturamento",
+    fmt_val(faturamento),
+    "💰", "#2ecc71",
     *(
-        (f"{abs(((realizado_t/meta)-1)*100):.1f}% da meta".replace(".", ","),
-         realizado_t >= meta)
-        if meta > 0 else (None, None)
+        (f"{abs(((faturamento/meta_faturamento)-1)*100):.1f}% da meta".replace(".", ","),
+         faturamento >= meta_faturamento)
+        if meta_faturamento > 0 else (None, None)
     )
 )}
 </div>"""
