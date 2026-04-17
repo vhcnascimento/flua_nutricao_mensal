@@ -209,7 +209,12 @@ def carregar_input_e_historico():
         return pd.DataFrame(columns=['Data', 'Nutri', 'ID caso', 'Status atendimento', 'Ano', 'Mês'])
 
     df_all = pd.concat(frames, ignore_index=True)
+    # Filtro: Ignorar linhas onde a Data ou o Status estejam vazios
     df_all = df_all[~df_all['Data'].isnull()].copy()
+    
+    col_status = 'Status atendimento (Realizado, Falta, Reagendou)'
+    if col_status in df_all.columns:
+        df_all = df_all[~df_all[col_status].isnull()].copy()
     # Nomes já estão limpos após o strip
     df_all["Data"] = pd.to_datetime(df_all["Data"], errors="coerce")
     df_all = label_semana(df_all)

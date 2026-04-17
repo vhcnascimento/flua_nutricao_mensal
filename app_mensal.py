@@ -407,7 +407,12 @@ def processar_input_e(file_objs):
         return pd.DataFrame(), logs
 
     df_all = pd.concat(frames, ignore_index=True)
+    # Filtro: Desconsiderar linhas onde a Data ou o Status estejam nulos
     df_all = df_all[~df_all['Data '].isnull()].copy()
+    
+    col_status = 'Status atendimento \n(Realizado, Falta, Reagendou)'
+    if col_status in df_all.columns:
+        df_all = df_all[~df_all[col_status].isnull()].copy()
     df_all.rename(columns={'Data ':'Data','Nutri ':'Nutri'}, inplace=True)
     df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
     df_all = label_semana(df_all)
