@@ -106,16 +106,30 @@ def carregar_input_a_historico():
         out['Mês']     = out['Mês_num']
         out['DDS']     = df['DDS'].copy() if 'DDS' in df.columns else ""
 
-        # Converter horários
-        if 'Início' in df.columns and 'Fim' in df.columns:
+        # 110-119: Processamento de horários priorizando a coluna 'Total horas'
+        if 'Total horas' in df.columns:
+            # Converte a coluna 'Total horas' (HH:MM:SS) para valor numérico (horas)
+            # Isso evita erros de arredondamento em slots de 45 min ou similares
+            total_td = pd.to_timedelta(df['Total horas'].astype(str), errors='coerce')
+            out["Janelas"] = total_td.dt.total_seconds() / 3600
+            out["Total horas"] = df['Total horas'].astype(str)
+            
+            # Formata Início e Fim apenas para exibição
+            if 'Início' in df.columns:
+                out['Início'] = pd.to_datetime(df['Início'], format="%H:%M:%S", errors="coerce").dt.time
+            if 'Fim' in df.columns:
+                out['Fim']    = pd.to_datetime(df['Fim'], format="%H:%M:%S", errors="coerce").dt.time
+        elif 'Início' in df.columns and 'Fim' in df.columns:
+            # Fallback caso não exista a coluna 'Total horas'
             out['Início'] = pd.to_datetime(df['Início'], format="%H:%M:%S", errors="coerce")
             out['Fim']    = pd.to_datetime(df['Fim'], format="%H:%M:%S", errors="coerce")
             out["Total horas"] = (out["Fim"] - out["Início"]).apply(
                 lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
             out["Janelas"] = (out["Fim"] - out["Início"]).dt.total_seconds() / 3600
-            out["Janelas"] = out["Janelas"].astype(int, errors='ignore')
-            out["Início"]  = out["Início"].dt.time
-            out["Fim"]     = out["Fim"].dt.time
+        
+        # Garantir que Janelas seja visto como inteiro se for o caso, mas sem truncar floats válidos
+        # Se 0.75 for intencional, deixamos 0.75. Se for 1.0, fica 1.
+        out["Janelas"] = out["Janelas"].fillna(0)
         
         out['Nutri'] = df['Nutri'].astype(str).str.strip().str.upper() if 'Nutri' in df.columns else "N/D"
         out = label_semana(out)

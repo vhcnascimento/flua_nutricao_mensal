@@ -240,27 +240,50 @@ def extract_sort_key(label):
 # ─── Input A: Disponibilidade Optum ──────────────────────────────────────────
 def processar_input_a(file_obj):
     df = pd.read_excel(file_obj)
+    # Higienizar colunas conforme regra do GEMINI.md
+    df.columns = df.columns.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
+
     out = pd.DataFrame(columns=['Data completa','Ano','Mês','Mês_Ano','DDS','Início','Fim','Total horas','Janelas','Nutri'])
-    out['Data completa'] = df['HORA INICIAL'].copy()
-    out["Data"] = out["Data completa"].str.split(" -").str[0]
-    out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
-    out['Ano']     = out["Data"].dt.year
-    out['Mês_num'] = out["Data"].dt.month
-    out['Mês']     = out['Mês_num'].map(dict_mes_full)
-    out['Mês_Ano'] = out['Mês'] + out['Ano'].astype(str)
-    out['DDS']     = out['Data completa'].str[-3:]
-    out['Início']  = df['HORA FINAL'].copy()
-    out["Início"]  = pd.to_datetime(out["Início"], format="%H:%M:%S", errors="coerce")
-    out['Fim']     = df['HORAS TOTAIS'].copy()
-    out["Fim"]     = pd.to_datetime(out["Fim"], format="%H:%M:%S", errors="coerce")
-    out["Total horas"] = (out["Fim"] - out["Início"]).apply(lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
-    out["Janelas"] = (out["Fim"] - out["Início"]).dt.total_seconds() / 3600
-    out["Janelas"] = out["Janelas"].astype(int)
-    out["Início"]  = out["Início"].dt.time
-    out["Fim"]     = out["Fim"].dt.time
-    out['Nutri']   = df['Unnamed: 6'].copy()
-    out['Nutri']   = out['Nutri'].str.strip().str.upper()
-    out.drop(columns=['Mês_num'], inplace=True)
+    
+    # Identificação flexível de colunas (Suporta formato Tratado e Raw)
+    col_data  = next((c for c in df.columns if c in ['Data completa', 'HORA INICIAL']), None)
+    col_inicio = next((c for c in df.columns if c in ['Início', 'HORA FINAL']), None)
+    col_fim    = next((c for c in df.columns if c in ['Fim', 'HORAS TOTAIS']), None)
+    col_total  = next((c for c in df.columns if c in ['Total horas', 'Duração']), None)
+    col_nutri  = next((c for c in df.columns if c in ['Nutri', 'Responsável']), None)
+    if not col_nutri and 'Unnamed: 6' in df.columns: col_nutri = 'Unnamed: 6'
+
+    if col_data:
+        out['Data completa'] = df[col_data].astype(str).copy()
+        out["Data"] = out["Data completa"].str.split(" -").str[0]
+        out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
+        out['Ano']     = out["Data"].dt.year
+        out['Mês_num'] = out["Data"].dt.month
+        out['Mês']     = out['Mês_num'].map(dict_mes_full)
+        out['Mês_Ano'] = out['Mês'].astype(str) + " " + out['Ano'].astype(str)
+        if 'DDS' in df.columns: out['DDS'] = df['DDS']
+        else: out['DDS'] = out['Data completa'].str[-3:]
+
+    # Cálculo de Janelas priorizando coluna de Total horas (ground truth)
+    if col_total:
+        total_td = pd.to_timedelta(df[col_total].astype(str), errors='coerce')
+        out["Janelas"] = total_td.dt.total_seconds() / 3600
+        out["Total horas"] = df[col_total].astype(str)
+    elif col_inicio and col_fim:
+        ini = pd.to_datetime(df[col_inicio], format="%H:%M:%S", errors="coerce")
+        fim = pd.to_datetime(df[col_fim], format="%H:%M:%S", errors="coerce")
+        out["Janelas"] = (fim - ini).dt.total_seconds() / 3600
+        out["Total horas"] = (fim - ini).apply(lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
+
+    if col_inicio:
+        out['Início'] = pd.to_datetime(df[col_inicio], format="%H:%M:%S", errors="coerce").dt.time
+    if col_fim:
+        out['Fim'] = pd.to_datetime(df[col_fim], format="%H:%M:%S", errors="coerce").dt.time
+    
+    if col_nutri:
+        out['Nutri'] = df[col_nutri].astype(str).str.strip().str.upper()
+
+    if 'Mês_num' in out.columns: out.drop(columns=['Mês_num'], inplace=True)
     out = label_semana(out)
     out['Mês'] = out['Data'].dt.month
     return out
