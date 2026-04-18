@@ -32,12 +32,12 @@ O sistema lida com o cruzamento de relatórios da operação da coordenação vs
 2. **Input D (Banco Optum Tratado)**
    - **Origem**: Arquivo Optum Tratada (Aba "Banco Optum tratado").
    - **Função**: Contém o tracking dos agendamentos oficiais do benefício.
-   - > 🎯 **Source of Truth**: É de onde calculamos as métricas de **Ocupação** e **Realizado** (onde Status sessão == "Compareceu ao atendimento").
-   - > ⚠️ **CRÍTICO - Faturamento**: A coluna `Valor atendimento` ou `Valor Unitário` do Input D é a **ÚNICA** fonte da verdade para o Faturamento. O Input E (da Nutri) NUNCA ditará valor em Reais a ser pago nos outputs F e G.
+   - > 🎯 **Source of Truth**: É de onde calculamos as métricas de **Ocupação** (total de agendamentos) e **Realizado** (onde Status sessão == "Compareceu ao atendimento").
+   - > ⚠️ **CRÍTICO - Faturamento**: O faturamento é calculado com base na **Ocupação**, incluindo tanto os "Comparecimentos" quanto as "Faltas". A coluna `Valor atendimento` ou `Valor Unitário` do Input D é a fonte da verdade para os valores individuais no Output G. No KPI principal, utiliza-se a `Ocupação * valor_consulta`.
 3. **Input E (Controle das Nutris)**
    - **Origem**: Multiplos relatórios preenchidos pelas nutricionistas (`Controle atendimentos...xlsx`).
    - **Função**: **Auditoria e Batimento**. Serve para conferir se o que a nutricionista registrou em sua planilha individual condiz com os agendamentos registrados no Banco Optum (Input D).
-   - > 📊 **Check**: Gera a coluna "Check" e "Planilhas" no Output G, mas não é a base para o KPI primário de Realizados.
+   - > 📊 **Check**: Gera a coluna "Check" e "Planilhas" no Output G. Não dita valores financeiros.
 
 ---
 
@@ -82,6 +82,9 @@ Os dados são ingeridos na nuvem de modo a simplificar o consumo do web-app.
     - `output_c` (Comparecimento Nutris vs Geral)
     - `output_f` (Taxas convertidas Oferta vs Ocupação vs Realizado e seus percentuais)
     - `output_g` (Resumo Tabela de Faturamento R$, cruzando contagem de status do Input E vs Agendamento Optum e exibindo checagem emoji de auditoria das planilhas das Nutris)
+  - **KPIs (Cálculo em Memória):**
+    - `Meta Faturamento`: `ceil(Oferta Total * 0.8) * 84`.
+    - `Faturamento`: `Ocupação Total * valor_consulta`.
 
 ---
 
@@ -94,3 +97,5 @@ Em vez do `st.metric`, o dashboard utiliza uma função helper `kpi_card` que ge
 - **Flexbox**: Os cards são organizados em um container `.kpi-wrapper` com `display: flex`. Isso permite um grid responsivo e alinhamento superior ao sistema de colunas nativo.
 - **Tematização**: O uso de **CSS Custom Properties** (ex: `--card-color`) permite que cada card tenha uma cor de acento associada ao seu significado (ex: Verde para "Realizado", Amarelo para "Atenção/Ocupação").
 - **Visual Excellence**: Qualquer nova métrica de destaque deve seguir este padrão para manter a "Wow Experience" do usuário.
+- **Tipografia Responsiva**: Utilização de `clamp()` para garantir que os valores dos KPIs se adaptem a diferentes resoluções.
+- **Formatação de Moeda**: O símbolo "R$" deve ser envolvido em `<span class="currency">` para ser renderizado menor que o valor numérico, evitando quebras de linha indesejadas.

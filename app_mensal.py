@@ -237,30 +237,79 @@ def extract_sort_key(label):
     return (0, 0, 0)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNÇÕES DE HIGIENIZAÇÃO / HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def safe_to_numeric(val):
+    """Converte valores monetários (R$ 84,00) ou numéricos (84.0) para float de forma segura."""
+    if pd.isna(val) or val == "":
+        return 0.0
+    if isinstance(val, (int, float, np.number)):
+        return float(val)
+    
+    s = str(val).replace("R$", "").strip()
+    if not s:
+        return 0.0
+    
+    if "." in s and "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 # ─── Input A: Disponibilidade Optum ──────────────────────────────────────────
 def processar_input_a(file_obj):
     df = pd.read_excel(file_obj)
+    # Higienizar colunas conforme regra do GEMINI.md
+    df.columns = df.columns.astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
+
     out = pd.DataFrame(columns=['Data completa','Ano','Mês','Mês_Ano','DDS','Início','Fim','Total horas','Janelas','Nutri'])
-    out['Data completa'] = df['HORA INICIAL'].copy()
-    out["Data"] = out["Data completa"].str.split(" -").str[0]
-    out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
-    out['Ano']     = out["Data"].dt.year
-    out['Mês_num'] = out["Data"].dt.month
-    out['Mês']     = out['Mês_num'].map(dict_mes_full)
-    out['Mês_Ano'] = out['Mês'] + out['Ano'].astype(str)
-    out['DDS']     = out['Data completa'].str[-3:]
-    out['Início']  = df['HORA FINAL'].copy()
-    out["Início"]  = pd.to_datetime(out["Início"], format="%H:%M:%S", errors="coerce")
-    out['Fim']     = df['HORAS TOTAIS'].copy()
-    out["Fim"]     = pd.to_datetime(out["Fim"], format="%H:%M:%S", errors="coerce")
-    out["Total horas"] = (out["Fim"] - out["Início"]).apply(lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
-    out["Janelas"] = (out["Fim"] - out["Início"]).dt.total_seconds() / 3600
-    out["Janelas"] = out["Janelas"].astype(int)
-    out["Início"]  = out["Início"].dt.time
-    out["Fim"]     = out["Fim"].dt.time
-    out['Nutri']   = df['Unnamed: 6'].copy()
-    out['Nutri']   = out['Nutri'].str.strip().str.upper()
-    out.drop(columns=['Mês_num'], inplace=True)
+    
+    # Identificação flexível de colunas (Suporta formato Tratado e Raw)
+    col_data  = next((c for c in df.columns if c in ['Data completa', 'HORA INICIAL']), None)
+    col_inicio = next((c for c in df.columns if c in ['Início', 'HORA FINAL']), None)
+    col_fim    = next((c for c in df.columns if c in ['Fim', 'HORAS TOTAIS']), None)
+    col_total  = next((c for c in df.columns if c in ['Total horas', 'Duração']), None)
+    col_nutri  = next((c for c in df.columns if c in ['Nutri', 'Responsável']), None)
+    if not col_nutri and 'Unnamed: 6' in df.columns: col_nutri = 'Unnamed: 6'
+
+    if col_data:
+        out['Data completa'] = df[col_data].astype(str).copy()
+        out["Data"] = out["Data completa"].str.split(" -").str[0]
+        out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
+        out['Ano']     = out["Data"].dt.year
+        out['Mês_num'] = out["Data"].dt.month
+        out['Mês']     = out['Mês_num'].map(dict_mes_full)
+        out['Mês_Ano'] = out['Mês'].astype(str) + " " + out['Ano'].astype(str)
+        if 'DDS' in df.columns: out['DDS'] = df['DDS']
+        else: out['DDS'] = out['Data completa'].str[-3:]
+
+    # Cálculo de Janelas priorizando coluna de Total horas (ground truth)
+    if col_total:
+        total_td = pd.to_timedelta(df[col_total].astype(str), errors='coerce')
+        out["Janelas"] = total_td.dt.total_seconds() / 3600
+        out["Total horas"] = df[col_total].astype(str)
+    elif col_inicio and col_fim:
+        ini = pd.to_datetime(df[col_inicio], format="%H:%M:%S", errors="coerce")
+        fim = pd.to_datetime(df[col_fim], format="%H:%M:%S", errors="coerce")
+        out["Janelas"] = (fim - ini).dt.total_seconds() / 3600
+        out["Total horas"] = (fim - ini).apply(lambda x: str(x).split(" days ")[-1] if pd.notnull(x) else None)
+
+    if col_inicio:
+        out['Início'] = pd.to_datetime(df[col_inicio], format="%H:%M:%S", errors="coerce").dt.time
+    if col_fim:
+        out['Fim'] = pd.to_datetime(df[col_fim], format="%H:%M:%S", errors="coerce").dt.time
+    
+    if col_nutri:
+        out['Nutri'] = df[col_nutri].astype(str).str.strip().str.upper()
+
+    if 'Mês_num' in out.columns: out.drop(columns=['Mês_num'], inplace=True)
     out = label_semana(out)
     out['Mês'] = out['Data'].dt.month
     return out
@@ -384,7 +433,12 @@ def processar_input_e(file_objs):
         return pd.DataFrame(), logs
 
     df_all = pd.concat(frames, ignore_index=True)
+    # Filtro: Desconsiderar linhas onde a Data ou o Status estejam nulos
     df_all = df_all[~df_all['Data '].isnull()].copy()
+    
+    col_status = 'Status atendimento \n(Realizado, Falta, Reagendou)'
+    if col_status in df_all.columns:
+        df_all = df_all[~df_all[col_status].isnull()].copy()
     df_all.rename(columns={'Data ':'Data','Nutri ':'Nutri'}, inplace=True)
     df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
     df_all = label_semana(df_all)
@@ -475,14 +529,7 @@ def build_output_g(df_d, df_e):
         val_col_d = 'Valor Unitário'
         
     if val_col_d:
-        df_g_raw['Valor_Real'] = (
-            df_g_raw[val_col_d].astype(str)
-            .str.replace("R$", "", regex=False)
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-            .str.strip()
-        )
-        df_g_raw['Valor_Real'] = pd.to_numeric(df_g_raw['Valor_Real'], errors='coerce').fillna(0)
+        df_g_raw['Valor_Real'] = df_g_raw[val_col_d].apply(safe_to_numeric)
     else:
         df_g_raw['Valor_Real'] = 0.0
 
@@ -915,6 +962,15 @@ if st.session_state.current_step == 1:
                                               for col in df_g_flat.columns]
                         dados_para_salvar["output_g"] = df_g_flat
 
+                    # Calcular Faturamento e Meta Faturamento para os metadados
+                    oferta_t_meta = float(df_a['Janelas'].sum()) if not df_a.empty else 0.0
+                    meta_fat_val = float(np.ceil(oferta_t_meta * 0.8) * 84)
+                    
+                    if df_g is not None and not df_g.empty and 'Total Faturamento' in df_g.columns:
+                        fat_val = float(df_g['Total Faturamento'].sum())
+                    else:
+                        fat_val = 0.0
+
                     # Salvar no Firestore
                     data_loader.salvar_dados_mensal(
                         _fb_db,
@@ -923,6 +979,8 @@ if st.session_state.current_step == 1:
                         custo_nutri_mes=custo,
                         impostos=imp,
                         valor_consulta=val,
+                        faturamento=fat_val,
+                        meta_faturamento=meta_fat_val,
                     )
 
                     # Limpar cache para forçar re-leitura
@@ -1105,7 +1163,11 @@ elif st.session_state.current_step == 2:
             # Nova regra: Meta Faturamento = ceil(Oferta Total * 0.8) * 84
             meta_faturamento = int(np.ceil(oferta_t * 0.8) * 84)
 
-            faturamento = ocupacao_t * st.session_state.valor_consulta if st.session_state.valor_consulta > 0 else 0
+            # Faturamento = Soma de todos os valores de consulta do Optum (Input D via Output G)
+            if df_g is not None and not df_g.empty and 'Total Faturamento' in df_g.columns:
+                faturamento = float(df_g['Total Faturamento'].sum())
+            else:
+                faturamento = 0.0
 
             def kpi_card(label, value, icon, color, delta_text=None, delta_positive=None):
                 """Retorna HTML de um card KPI estilizado."""
