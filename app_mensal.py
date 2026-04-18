@@ -237,6 +237,32 @@ def extract_sort_key(label):
     return (0, 0, 0)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNÇÕES DE HIGIENIZAÇÃO / HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def safe_to_numeric(val):
+    """Converte valores monetários (R$ 84,00) ou numéricos (84.0) para float de forma segura."""
+    if pd.isna(val) or val == "":
+        return 0.0
+    if isinstance(val, (int, float, np.number)):
+        return float(val)
+    
+    s = str(val).replace("R$", "").strip()
+    if not s:
+        return 0.0
+    
+    if "." in s and "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 # ─── Input A: Disponibilidade Optum ──────────────────────────────────────────
 def processar_input_a(file_obj):
     df = pd.read_excel(file_obj)
@@ -503,14 +529,7 @@ def build_output_g(df_d, df_e):
         val_col_d = 'Valor Unitário'
         
     if val_col_d:
-        df_g_raw['Valor_Real'] = (
-            df_g_raw[val_col_d].astype(str)
-            .str.replace("R$", "", regex=False)
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-            .str.strip()
-        )
-        df_g_raw['Valor_Real'] = pd.to_numeric(df_g_raw['Valor_Real'], errors='coerce').fillna(0)
+        df_g_raw['Valor_Real'] = df_g_raw[val_col_d].apply(safe_to_numeric)
     else:
         df_g_raw['Valor_Real'] = 0.0
 
@@ -943,6 +962,15 @@ if st.session_state.current_step == 1:
                                               for col in df_g_flat.columns]
                         dados_para_salvar["output_g"] = df_g_flat
 
+                    # Calcular Faturamento e Meta Faturamento para os metadados
+                    oferta_t_meta = float(df_a['Janelas'].sum()) if not df_a.empty else 0.0
+                    meta_fat_val = float(np.ceil(oferta_t_meta * 0.8) * 84)
+                    
+                    if df_g is not None and not df_g.empty and 'Total Faturamento' in df_g.columns:
+                        fat_val = float(df_g['Total Faturamento'].sum())
+                    else:
+                        fat_val = 0.0
+
                     # Salvar no Firestore
                     data_loader.salvar_dados_mensal(
                         _fb_db,
@@ -951,6 +979,8 @@ if st.session_state.current_step == 1:
                         custo_nutri_mes=custo,
                         impostos=imp,
                         valor_consulta=val,
+                        faturamento=fat_val,
+                        meta_faturamento=meta_fat_val,
                     )
 
                     # Limpar cache para forçar re-leitura
@@ -1133,7 +1163,11 @@ elif st.session_state.current_step == 2:
             # Nova regra: Meta Faturamento = ceil(Oferta Total * 0.8) * 84
             meta_faturamento = int(np.ceil(oferta_t * 0.8) * 84)
 
-            faturamento = ocupacao_t * st.session_state.valor_consulta if st.session_state.valor_consulta > 0 else 0
+            # Faturamento = Soma de todos os valores de consulta do Optum (Input D via Output G)
+            if df_g is not None and not df_g.empty and 'Total Faturamento' in df_g.columns:
+                faturamento = float(df_g['Total Faturamento'].sum())
+            else:
+                faturamento = 0.0
 
             def kpi_card(label, value, icon, color, delta_text=None, delta_positive=None):
                 """Retorna HTML de um card KPI estilizado."""

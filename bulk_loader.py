@@ -54,6 +54,29 @@ def limpar_colunas(df):
     return df
 
 
+def safe_to_numeric(val):
+    """Converte valores monetários (R$ 84,00) ou numéricos (84.0) para float de forma segura."""
+    if pd.isna(val) or val == "":
+        return 0.0
+    if isinstance(val, (int, float, np.number)):
+        return float(val)
+    
+    s = str(val).replace("R$", "").strip()
+    if not s:
+        return 0.0
+    
+    # Tratamento de pontuação PT-BR vs EN
+    if "." in s and "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
 def tratar_nomes_nutri(df, coluna='Nutri'):
     df = df.copy()
     df[coluna] = df[coluna].str.strip().str.upper().replace(MAPA_NOMES)
@@ -292,14 +315,7 @@ def build_output_g(df_d, df_e):
         val_col_d = 'Valor Unitário'
         
     if val_col_d:
-        df_g_raw['Valor_Real'] = (
-            df_g_raw[val_col_d].astype(str)
-            .str.replace("R$", "", regex=False)
-            .str.replace(".", "", regex=False)
-            .str.replace(",", ".", regex=False)
-            .str.strip()
-        )
-        df_g_raw['Valor_Real'] = pd.to_numeric(df_g_raw['Valor_Real'], errors='coerce').fillna(0)
+        df_g_raw['Valor_Real'] = df_g_raw[val_col_d].apply(safe_to_numeric)
     else:
         df_g_raw['Valor_Real'] = 0.0
 
@@ -450,22 +466,22 @@ def main():
             df_f = build_output_f(df_a_mes, df_d_mes, df_e_mes) if len(df_a_mes) > 0 else pd.DataFrame()
             df_g = build_output_g(df_d_mes, df_e_mes) if len(df_d_mes) > 0 else None
 
-            # Extrair valor consulta do input D (se disponível)
-            valor_consulta = 0
+            # Faturamento: Soma simples dos valores do Input D (Banco Optum)
+            faturamento = 0.0
+            valor_consulta = 0.0
             col_valor = next((c for c in df_d_mes.columns if c in ('Valor Unitário', 'Valor atendimento')), None)
             if col_valor:
-                vals = (
-                    df_d_mes[col_valor]
-                    .astype(str)
-                    .str.replace("R$", "", regex=False)
-                    .str.replace(".", "", regex=False)
-                    .str.replace(",", ".", regex=False)
-                    .str.strip()
-                )
-                vals = pd.to_numeric(vals, errors='coerce').dropna()
-                vals = vals[vals > 0]
-                if not vals.empty:
-                    valor_consulta = float(vals.mode().iloc[0]) if not vals.mode().empty else float(vals.median())
+                vals = df_d_mes[col_valor].apply(safe_to_numeric)
+                faturamento = float(vals.sum())
+                
+                # Extrair valor consulta modal (apenas para metadados/referência)
+                vals_non_zero = vals[vals > 0]
+                if not vals_non_zero.empty:
+                    valor_consulta = float(vals_non_zero.mode().iloc[0]) if not vals_non_zero.mode().empty else float(vals_non_zero.median())
+
+            # Meta Faturamento: ceil(Oferta Total * 0.8) * 84 (Regra de negócio)
+            oferta_t = float(df_a_mes['Janelas'].sum()) if not df_a_mes.empty else 0.0
+            meta_faturamento = float(np.ceil(oferta_t * 0.8) * 84)
 
             # Preparar dados para salvar (apenas DataFrames, sem 'meta')
             dados = {
@@ -483,6 +499,8 @@ def main():
                 custo_nutri_mes=0.0,
                 impostos=0.0,
                 valor_consulta=valor_consulta,
+                faturamento=faturamento,
+                meta_faturamento=meta_faturamento,
             )
             print(f"     ✅ {label} salvo com sucesso!")
             total_ok += 1

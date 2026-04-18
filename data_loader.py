@@ -158,6 +158,8 @@ def salvar_dados_mensal(
     custo_nutri_mes: float = 0.0,
     impostos: float = 0.0,
     valor_consulta: float = 0.0,
+    faturamento: float = 0.0,
+    meta_faturamento: float = 0.0,
 ):
     """
     Salva todos os DataFrames de um período no Firestore.
@@ -180,6 +182,8 @@ def salvar_dados_mensal(
         "custo_nutri_mes": float(custo_nutri_mes),
         "impostos": float(impostos),
         "valor_consulta": float(valor_consulta),
+        "faturamento": float(faturamento),
+        "meta_faturamento": float(meta_faturamento),
     })
 
     # Salvar cada DataFrame
