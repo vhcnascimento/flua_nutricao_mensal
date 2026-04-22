@@ -164,7 +164,7 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
 
-    /* Estilização do botão Voltar */
+    /* Estilização dos Botões */
     .stButton button {
         background-color: #f8f9fa !important;
         color: #7f8c8d !important;
@@ -177,6 +177,75 @@ st.markdown("""
         border-color: #044851 !important;
         color: #044851 !important;
         background-color: #ffffff !important;
+    }
+
+    /* Stepper Styling */
+    .stepper-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        border: 1px solid #edf2f7;
+    }
+    .step {
+        display: flex;
+        align-items: center;
+        font-weight: 600;
+        color: #aab7b8;
+    }
+    .step.active {
+        color: #044851;
+    }
+    .step-number {
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #edf2f7;
+        margin-right: 8px;
+        font-size: 1rem;
+    }
+    .step.active .step-number {
+        background: #044851;
+        color: #ffffff;
+    }
+    .step-divider {
+        height: 2px;
+        width: 60px;
+        background: #edf2f7;
+        margin: 0 15px;
+    }
+    .step-divider.active {
+        background: #044851;
+    }
+    
+    /* Upload Cards */
+    .upload-card {
+        background: #ffffff;
+        border: 1px solid #edf2f7;
+        border-radius: 12px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+        border-left: 5px solid #044851;
+    }
+    .upload-card:hover {
+        border-color: #66cbdd;
+        box-shadow: 0 4px 10px rgba(102, 203, 221, 0.1);
+        transform: translateY(-2px);
+    }
+    .upload-card h4 {
+        margin-top: 0;
+        color: #044851;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -712,6 +781,7 @@ def abrev_nutri(nome):
 # ─────────────────────────────────────────────────────────────────────────────
 defaults = {
     'current_step': 1,
+    'carga_step': 1,
     'df_a': None, 'df_d': None, 'df_e': None,
     'logs_d': [], 'logs_e': [],
     'df_c': None, 'df_f': None, 'df_g': None,
@@ -719,6 +789,7 @@ defaults = {
     'custo_nutri_mes': 0.0, 'impostos': 0.0, 'valor_consulta': 0.0,
     'firebase_ok': False,
     'confirmar_sobrescrita': False,
+    'pre_save_data': None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -777,7 +848,7 @@ if st.session_state.current_step == 1:
     st.markdown('<div class="section-header">📤 Seção 1: Carga de Dados</div>', unsafe_allow_html=True)
 
     if _fb_db is None:
-        st.markdown("""
+        st.markdown('''
         <div class="error-box">
             <h4>⚠️ Firebase não configurado</h4>
             <p>O arquivo <code>serviceAccountKey.json</code> não foi encontrado na raiz do projeto.</p>
@@ -789,242 +860,285 @@ if st.session_state.current_step == 1:
                 <li>Salve o JSON como <code>serviceAccountKey.json</code> na raiz do projeto</li>
             </ol>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
     else:
-        st.markdown("""
-        <div class="info-box">
-            <h4>📋 Como funciona</h4>
-            <p>Selecione a <strong>competência</strong> (mês/ano), carregue os arquivos e clique em <strong>Enviar</strong>.
-            Os dados serão processados e salvos no banco de dados para consulta posterior no Dashboard.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── Competência ──────────────────────────────────────────────────────
-        st.subheader("📅 Competência")
-        c_mes, c_ano = st.columns(2)
-        with c_mes:
-            mes_carga = st.selectbox("Mês", list(range(1, 13)),
-                                      format_func=lambda x: dict_mes_full[x],
-                                      key="mes_carga")
-        with c_ano:
-            ano_carga = st.number_input("Ano", min_value=2020, max_value=2030,
-                                         value=datetime.now().year, step=1, key="ano_carga")
-
-        # Verificar se período já existe
-        periodo_existe = data_loader.verificar_periodo_existe(_fb_db, int(ano_carga), int(mes_carga))
-        if periodo_existe:
-            st.markdown(f"""
-            <div class="warning-box">
-                ⚠️ Já existem dados para <strong>{dict_mes_full[mes_carga]}/{int(ano_carga)}</strong> no banco de dados.
-                Se enviar novos dados, os anteriores serão <strong>sobrescritos</strong>.
+        # Render Stepper
+        step = st.session_state.carga_step
+        active_1 = "active" if step >= 1 else ""
+        active_2 = "active" if step >= 2 else ""
+        div_act_12 = "active" if step >= 2 else ""
+        
+        stepper_html = f'''
+        <div class="stepper-container">
+            <div class="step {active_1}">
+                <div class="step-number">1</div>
+                <div>Setup e Upload</div>
             </div>
-            """, unsafe_allow_html=True)
+            <div class="step-divider {div_act_12}"></div>
+            <div class="step {active_2}">
+                <div class="step-number">2</div>
+                <div>Revisão e Envio</div>
+            </div>
+        </div>
+        '''
+        st.markdown(stepper_html, unsafe_allow_html=True)
 
-        st.markdown("---")
+        # Passo 1: Setup e Upload
+        if step == 1:
+            st.markdown('''
+            <div class="info-box">
+                <h4>📋 Passo 1: Configuração e Importação</h4>
+                <p>Selecione a competência, defina os parâmetros e anexe os arquivos. Em seguida, os dados serão lidos para validação visual na aba de Revisão.</p>
+            </div>
+            ''', unsafe_allow_html=True)
 
-        # ── Uploads ──────────────────────────────────────────────────────────
-        st.subheader("📥 Arquivos")
+            # ── Competência ──
+            col_setup1, col_setup2 = st.columns([1, 1])
+            with col_setup1:
+                st.markdown('<div class="upload-card"><h4>📅 Competência</h4>', unsafe_allow_html=True)
+                c_mes, c_ano = st.columns(2)
+                with c_mes:
+                    mes_carga = st.selectbox("Mês", list(range(1, 13)), format_func=lambda x: dict_mes_full[x], key="mes_carga")
+                with c_ano:
+                    ano_carga = st.number_input("Ano", min_value=2020, max_value=2030, value=datetime.now().year, step=1, key="ano_carga")
+                
+                periodo_existe = data_loader.verificar_periodo_existe(_fb_db, int(ano_carga), int(mes_carga))
+                if periodo_existe:
+                    st.markdown('''
+                    <div style="margin-top: 10px; background-color: #fff8e0; border-left: 4px solid #fcc105; padding: 10px; font-size: 0.9em; border-radius: 4px; color: #8a6d00;">
+                        ⚠️ Período já existe. O novo envio irá sobrescrever os dados para esta competência.
+                    </div>
+                    ''', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+            
+            with col_setup2:
+                st.markdown('<div class="upload-card"><h4>💰 Parâmetros Financeiros</h4>', unsafe_allow_html=True)
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    custo = st.number_input("Custo Nutris (R$)", min_value=0.0, value=float(st.session_state.custo_nutri_mes), step=1000.0, key="custo_carga")
+                with c2:
+                    imp = st.number_input("Impostos (%)", min_value=0.0, max_value=100.0, value=float(st.session_state.impostos), step=0.5, key="imp_carga")
+                with c3:
+                    val = st.number_input("Valor Conf. (R$)", min_value=0.0, value=float(st.session_state.valor_consulta), step=1.0, key="val_carga")
+                st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("**Input A — Disponibilidade Optum (1 arquivo)**")
-        file_a = st.file_uploader("Carregue o arquivo de disponibilidade",
-                                   type=['xlsx','xls'], key="file_a_carga")
+            # ── Uploads ──
+            st.markdown('<div class="upload-card"><h4>📥 1. Disponibilidade Optum</h4>', unsafe_allow_html=True)
+            file_a = st.file_uploader("Arquivo A (Planilha de Oferta - 1 arquivo)", type=['xlsx','xls'], key="file_a_carga")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("**Input D — Relatórios de Sessões Optum (múltiplos)**")
-        files_d = st.file_uploader("Carregue os relatórios de sessões",
-                                    type=['xlsx','xls'], accept_multiple_files=True, key="files_d_carga")
+            st.markdown('<div class="upload-card"><h4>📥 2. Relatórios de Sessões Optum</h4>', unsafe_allow_html=True)
+            files_d = st.file_uploader("Arquivos D (Agendamentos Ocupados - Múltiplos)", type=['xlsx','xls'], accept_multiple_files=True, key="files_d_carga")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("**Input E — Controles Individuais (múltiplos, opcional)**")
-        files_e = st.file_uploader("Carregue os controles individuais",
-                                    type=['xlsx','xls'], accept_multiple_files=True, key="files_e_carga")
+            st.markdown('<div class="upload-card"><h4>📥 3. Controles das Nutricionistas</h4>', unsafe_allow_html=True)
+            files_e = st.file_uploader("Arquivos E (Auditoria para Check - Múltiplos)", type=['xlsx','xls'], accept_multiple_files=True, key="files_e_carga")
+            st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("---")
+            pode_enviar = file_a is not None or len(files_d) > 0 or len(files_e) > 0
 
-        # ── Parâmetros Financeiros ───────────────────────────────────────────
-        st.subheader("💰 Parâmetros Financeiros")
-        st.caption("Opcional — deixe zerado se não quiser cálculos financeiros")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            custo = st.number_input("Custo com Nutricionistas (R$/mês)", min_value=0.0,
-                                     value=float(st.session_state.custo_nutri_mes), step=1000.0,
-                                     key="custo_carga")
-        with c2:
-            imp = st.number_input("Impostos (%)", min_value=0.0, max_value=100.0,
-                                   value=float(st.session_state.impostos), step=0.5,
-                                   key="imp_carga")
-        with c3:
-            val = st.number_input("Valor por Consulta (R$)", min_value=0.0,
-                                   value=float(st.session_state.valor_consulta), step=1.0,
-                                   key="val_carga")
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Processar Dados e Revisar (Avançar) ➡️", type="primary", use_container_width=True, disabled=not pode_enviar):
+                with st.spinner("⏳ Analisando dados em memória..."):
+                    try:
+                        # Process in memory
+                        dados_existentes = None
+                        if periodo_existe:
+                            dados_existentes = data_loader.carregar_dados_mensal(_fb_db, int(ano_carga), int(mes_carga))
+                            
+                        df_a_db = dados_existentes.get('input_a', pd.DataFrame()) if dados_existentes else pd.DataFrame()
+                        df_d_db = dados_existentes.get('input_d', pd.DataFrame()) if dados_existentes else pd.DataFrame()
+                        df_e_db = dados_existentes.get('input_e', pd.DataFrame()) if dados_existentes else pd.DataFrame()
 
-        st.markdown("---")
+                        if df_a_db.empty: df_a_db = pd.DataFrame(columns=['Data completa','Ano','Mês','Mês_Ano','DDS','Início','Fim','Total horas','Janelas','Nutri','Data','Semana_mes','Semana_label'])
+                        if df_d_db.empty: df_d_db = pd.DataFrame(columns=['Número do caso','Beneficiário','Empresa','Data inicial do caso','Status do caso','Tipo medida tomada','Nutri','Data','Tempo atendimento','Status sessão','Valor Unitário','Semana_mes','Semana_label','Ano','Mês'])
+                        if df_e_db.empty: df_e_db = pd.DataFrame(columns=['Data', 'Nutri', 'ID caso', 'Status atendimento \n(Realizado, Falta, Reagendou)', 'Arquivo', 'Semana_mes', 'Semana_label', 'Ano', 'Mês'])
 
-        # ── Botão de envio ───────────────────────────────────────────────────
-        pode_enviar = file_a is not None or len(files_d) > 0 or len(files_e) > 0
+                        file_a_obj = st.session_state.get("file_a_carga")
+                        if file_a_obj: file_a_obj.seek(0)
+                        df_a = processar_input_a(file_a_obj) if file_a_obj else df_a_db
 
-        if not pode_enviar:
-            st.markdown('<div class="warning-box">⚠️ Carregue pelo menos o Input A, Input D, ou Input E para continuar</div>', unsafe_allow_html=True)
+                        files_d_obj = st.session_state.get("files_d_carga", [])
+                        if files_d_obj:
+                            for f in files_d_obj: f.seek(0)
+                        df_d, logs_d = processar_input_d(files_d_obj) if files_d_obj else (df_d_db, [])
 
-        # Lógica de confirmação de sobrescrita
-        if periodo_existe and pode_enviar:
-            if not st.session_state.confirmar_sobrescrita:
-                if st.button("🚀 Atualizar Dados no Banco", type="primary", use_container_width=True):
-                    st.session_state.confirmar_sobrescrita = True
-                    st.rerun()
-            else:
-                st.markdown(f"""
-                <div class="warning-box">
-                    <strong>⚠️ Confirmação de Atualização:</strong> os dados de
-                    <strong>{dict_mes_full[mes_carga]}/{int(ano_carga)}</strong>
-                    já existem no banco. Os arquivos enviados irão atualizar essa competência, mesclando com os dados não modificados.<br>Deseja continuar?
-                </div>
-                """, unsafe_allow_html=True)
-                col_sim, col_nao = st.columns(2)
-                with col_sim:
-                    confirmar = st.button("✅ Sim, atualizar", type="primary", use_container_width=True)
-                with col_nao:
-                    cancelar = st.button("❌ Cancelar", use_container_width=True)
-                if cancelar:
-                    st.session_state.confirmar_sobrescrita = False
-                    st.rerun()
-                if confirmar:
-                    st.session_state.confirmar_sobrescrita = False
-                    # Apenas seguir em frente ativando a flag, não excluir o período
-                    st.session_state._executar_carga = True
-                    st.rerun()
-        elif pode_enviar:
-            if st.button("🚀 Processar e Enviar ao Banco de Dados", type="primary", use_container_width=True):
-                st.session_state._executar_carga = True
+                        files_e_obj = st.session_state.get("files_e_carga", [])
+                        if files_e_obj:
+                            for f in files_e_obj: f.seek(0)
+                        df_e, logs_e = processar_input_e(files_e_obj) if files_e_obj else (df_e_db, [])
+
+                        # --- FILTRO DE COMPETÊNCIA ---
+                        # Aplica máscara para garantir que apenas o mês/ano selecionado seja processado (vital para Input E que possui histórico)
+                        _ano, _mes = int(ano_carga), int(mes_carga)
+                        if not df_a.empty and 'Ano' in df_a.columns: df_a = df_a[(df_a['Ano'] == _ano) & (df_a['Mês'] == _mes)].copy()
+                        if not df_d.empty and 'Ano' in df_d.columns: df_d = df_d[(df_d['Ano'] == _ano) & (df_d['Mês'] == _mes)].copy()
+                        if not df_e.empty and 'Ano' in df_e.columns: df_e = df_e[(df_e['Ano'] == _ano) & (df_e['Mês'] == _mes)].copy()
+
+                        df_c = build_output_c(df_a, df_d)
+                        df_f, bad = build_output_f(df_a, df_d, df_e)
+                        df_g = build_output_g(df_d, df_e) if not df_d.empty else None
+
+                        st.session_state.pre_save_data = {
+                            "ano": int(ano_carga),
+                            "mes": int(mes_carga),
+                            "custo": custo,
+                            "imp": imp,
+                            "val": val,
+                            "df_a": df_a, "df_d": df_d, "df_e": df_e,
+                            "df_c": df_c, "df_f": df_f, "df_g": df_g,
+                            "logs_d": logs_d, "logs_e": logs_e, "bad": bad
+                        }
+                        st.session_state.carga_step = 2
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Erro no processamento: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
+
+        # Passo 2: Verificacao e Envio
+        elif step == 2:
+            st.markdown('''
+            <div class="success-box" style="margin-bottom: 20px;">
+                <h4>✅ Leitura Concluída (Em Memória)</h4>
+                <p>Verifique o resumo operacional abaixo. Se tudo estiver correto, clique em Confirmar para salvar os dados no dashboard oficial.</p>
+            </div>
+            ''', unsafe_allow_html=True)
+            
+            data = st.session_state.get('pre_save_data')
+            if not data:
+                st.session_state.carga_step = 1
                 st.rerun()
+                
+            df_a = data['df_a']
+            df_g = data['df_g']
+            df_e = data['df_e']
+            
+            # KPI rápidos
+            oferta_total = df_a['Janelas'].sum() if not df_a.empty else 0
+            ocup_total = df_g['Total Agendamentos'].sum() if df_g is not None and 'Total Agendamentos' in df_g.columns else 0
+            fat_total = df_g['Total Faturamento'].sum() if df_g is not None and 'Total Faturamento' in df_g.columns else 0
 
-        # ── Execução da carga ────────────────────────────────────────────────
-        if st.session_state.get('_executar_carga', False):
-            st.session_state._executar_carga = False
-            with st.spinner("⏳ Processando dados e salvando no banco..."):
-                try:
-                    # Carregar dados existentes se período já existir
-                    dados_existentes = None
-                    if periodo_existe:
-                        dados_existentes = data_loader.carregar_dados_mensal(_fb_db, int(ano_carga), int(mes_carga))
-                        
-                    df_a_db = dados_existentes.get('input_a', pd.DataFrame()) if dados_existentes else pd.DataFrame()
-                    df_d_db = dados_existentes.get('input_d', pd.DataFrame()) if dados_existentes else pd.DataFrame()
-                    df_e_db = dados_existentes.get('input_e', pd.DataFrame()) if dados_existentes else pd.DataFrame()
+            if df_g is not None:
+                nutris_encontradas = len(df_g.index.get_level_values('Nutri').unique())
+            else:
+                nutris_encontradas = 0
 
-                    # Garantir colunas para evitar KeyError em processamentos
-                    if df_a_db.empty: df_a_db = pd.DataFrame(columns=['Data completa','Ano','Mês','Mês_Ano','DDS','Início','Fim','Total horas','Janelas','Nutri','Data','Semana_mes','Semana_label'])
-                    if df_d_db.empty: df_d_db = pd.DataFrame(columns=['Número do caso','Beneficiário','Empresa','Data inicial do caso','Status do caso','Tipo medida tomada','Nutri','Data','Tempo atendimento','Status sessão','Valor Unitário','Semana_mes','Semana_label','Ano','Mês'])
-                    if df_e_db.empty: df_e_db = pd.DataFrame(columns=['Data', 'Nutri', 'ID caso', 'Status atendimento \n(Realizado, Falta, Reagendou)', 'Arquivo', 'Semana_mes', 'Semana_label', 'Ano', 'Mês'])
+            st.markdown(f'''
+            <div class="kpi-wrapper">
+                <div class="kpi-card" style="--card-color: #66cbdd;">
+                    <div class="kpi-icon">📦</div>
+                    <div class="kpi-label">Janelas Lidas</div>
+                    <div class="kpi-value">{int(oferta_total)}</div>
+                </div>
+                <div class="kpi-card" style="--card-color: #044851;">
+                    <div class="kpi-icon">📅</div>
+                    <div class="kpi-label">Sessões Lidas</div>
+                    <div class="kpi-value">{int(ocup_total)}</div>
+                </div>
+                <div class="kpi-card" style="--card-color: #c3d76b;">
+                    <div class="kpi-icon">👥</div>
+                    <div class="kpi-label">Nutris Identificadas</div>
+                    <div class="kpi-value">{nutris_encontradas}</div>
+                </div>
+                <div class="kpi-card" style="--card-color: #2ecc71;">
+                    <div class="kpi-icon">💰</div>
+                    <div class="kpi-label">Previsão Faturamento</div>
+                    <div class="kpi-value"><span class="currency">R$</span> {fat_total:,.2f}</div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
 
-                    # Input A
-                    file_a_obj = st.session_state.get("file_a_carga")
-                    if file_a_obj:
-                        file_a_obj.seek(0)
-                        df_a = processar_input_a(file_a_obj)
-                    else:
-                        df_a = df_a_db
+            # Logs de Erro
+            logs_d = data['logs_d']
+            logs_e = data['logs_e']
+            has_errors = any(s == "ERRO" for s, n, m in logs_d) or any(s == "ERRO" for s, n, m in logs_e)
+            
+            if has_errors:
+                st.markdown('<div class="error-box" style="margin-bottom: 20px;">⚠️ Houve problemas na leitura de alguns arquivos. Confira abaixo.</div>', unsafe_allow_html=True)
+                
+            c_log1, c_log2 = st.columns(2)
+            with c_log1:
+                if logs_d:
+                    with st.expander("📄 Logs do Optum (Input D)", expanded=has_errors):
+                        for status, nome, msg in logs_d:
+                            st.markdown(f"{'✅' if status == 'OK' else '❌'} **{nome}**" + (f" — {msg}" if msg else ""))
+            with c_log2:
+                if logs_e:
+                    with st.expander("📄 Logs das Planilhas (Input E)", expanded=has_errors):
+                        for status, nome, msg in logs_e:
+                            st.markdown(f"{'✅' if status == 'OK' else '❌'} **{nome}**" + (f" — {msg}" if msg else ""))
+            
+            bad = data.get('bad')
+            if bad is not None and not bad.empty:
+                st.markdown('<div class="error-box" style="margin-top:20px;">⚠️ Linhas ignoradas por falta de Data/Valores em Branco ou Ano 0:</div>', unsafe_allow_html=True)
+                st.dataframe(bad, use_container_width=True)
 
-                    # Input D
-                    files_d_obj = st.session_state.get("files_d_carga", [])
-                    if files_d_obj:
-                        for f in files_d_obj:
-                            f.seek(0)
-                        df_d, logs_d = processar_input_d(files_d_obj)
-                    else:
-                        df_d, logs_d = df_d_db, []
+            st.markdown("---")
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("⬅️ Retornar e Editar Parâmetros", use_container_width=True):
+                    st.session_state.carga_step = 1
+                    st.rerun()
+            with col_b2:
+                if st.button("🚀 Confirmar e Enviar ao Banco", type="primary", use_container_width=True):
+                    with st.spinner("💾 Persistindo no Firebase..."):
+                        try:
+                            # Save
+                            dt = st.session_state.pre_save_data
+                            dados_para_salvar = {
+                                "input_a": dt['df_a'],
+                                "input_d": dt['df_d'],
+                                "input_e": dt['df_e'],
+                                "output_c": dt['df_c'],
+                                "output_f": dt['df_f'],
+                            }
+                            df_g_save = dt['df_g']
+                            if df_g_save is not None:
+                                df_g_flat = df_g_save.reset_index()
+                                df_g_flat.columns = [' - '.join([str(c) for c in col]).strip(' - ') if isinstance(col, tuple) else col for col in df_g_flat.columns]
+                                dados_para_salvar["output_g"] = df_g_flat
 
-                    # Input E
-                    files_e_obj = st.session_state.get("files_e_carga", [])
-                    if files_e_obj:
-                        for f in files_e_obj:
-                            f.seek(0)
-                        df_e, logs_e = processar_input_e(files_e_obj)
-                    else:
-                        df_e, logs_e = df_e_db, []
+                            oferta_t_meta = float(dt['df_a']['Janelas'].sum()) if not dt['df_a'].empty else 0.0
+                            meta_fat_val = float(np.ceil(oferta_t_meta * 0.8) * 84)
+                            
+                            fat_val = float(df_g_save['Total Faturamento'].sum()) if df_g_save is not None and not df_g_save.empty and 'Total Faturamento' in df_g_save.columns else 0.0
 
-                    # Outputs
-                    df_c = build_output_c(df_a, df_d)
-                    df_f, bad = build_output_f(df_a, df_d, df_e)
-                    df_g = build_output_g(df_d, df_e) if not df_d.empty else None
+                            data_loader.salvar_dados_mensal(
+                                _fb_db,
+                                dt['ano'], dt['mes'],
+                                dados_para_salvar,
+                                custo_nutri_mes=dt['custo'],
+                                impostos=dt['imp'],
+                                valor_consulta=dt['val'],
+                                faturamento=fat_val,
+                                meta_faturamento=meta_fat_val,
+                            )
 
-                    # Preparar dict para salvar
-                    dados_para_salvar = {
-                        "input_a": df_a,
-                        "input_d": df_d,
-                        "input_e": df_e,
-                        "output_c": df_c,
-                        "output_f": df_f,
-                    }
-                    if df_g is not None:
-                        # Flatten multi-level columns do output_g antes de salvar
-                        df_g_flat = df_g.reset_index()
-                        df_g_flat.columns = [' - '.join([str(c) for c in col]).strip(' - ')
-                                              if isinstance(col, tuple) else col
-                                              for col in df_g_flat.columns]
-                        dados_para_salvar["output_g"] = df_g_flat
+                            if '_cache_periodos' in st.session_state:
+                                del st.session_state['_cache_periodos']
 
-                    # Calcular Faturamento e Meta Faturamento para os metadados
-                    oferta_t_meta = float(df_a['Janelas'].sum()) if not df_a.empty else 0.0
-                    meta_fat_val = float(np.ceil(oferta_t_meta * 0.8) * 84)
-                    
-                    if df_g is not None and not df_g.empty and 'Total Faturamento' in df_g.columns:
-                        fat_val = float(df_g['Total Faturamento'].sum())
-                    else:
-                        fat_val = 0.0
-
-                    # Salvar no Firestore
-                    data_loader.salvar_dados_mensal(
-                        _fb_db,
-                        int(ano_carga), int(mes_carga),
-                        dados_para_salvar,
-                        custo_nutri_mes=custo,
-                        impostos=imp,
-                        valor_consulta=val,
-                        faturamento=fat_val,
-                        meta_faturamento=meta_fat_val,
-                    )
-
-                    # Limpar cache para forçar re-leitura
-                    if '_cache_periodos' in st.session_state:
-                        del st.session_state['_cache_periodos']
-
-                    st.success(f"✅ Dados de {dict_mes_full[mes_carga]}/{int(ano_carga)} salvos com sucesso no banco de dados!")
-
-                    # Mostrar logs
-                    if logs_d:
-                        with st.expander("📋 Log — Input D"):
-                            for status, nome, msg in logs_d:
-                                icon = "✅" if status == "OK" else "❌"
-                                st.markdown(f"{icon} **{nome}**" + (f" — {msg}" if msg else ""))
-                    if logs_e:
-                        with st.expander("📋 Log — Input E"):
-                            for status, nome, msg in logs_e:
-                                icon = "✅" if status == "OK" else "❌"
-                                st.markdown(f"{icon} **{nome}**" + (f" — {msg}" if msg else ""))
-                    if bad is not None and not bad.empty:
-                        st.markdown('<div class="error-box">⚠️ Eventos com datas inválidas encontrados (excluídos dos cálculos).</div>', unsafe_allow_html=True)
-                        st.dataframe(bad, use_container_width=True)
-
-                except Exception as e:
-                    st.error(f"❌ Erro no processamento: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                            st.session_state.carga_step = 1
+                            st.session_state.pre_save_data = None
+                            st.success(f"✅ Dados de {dict_mes_full[dt['mes']]}/{dt['ano']} processados e salvos com sucesso!")
+                        except Exception as e:
+                            st.error(f"❌ Falha ao salvar no banco: {e}")
 
         # ── Períodos já carregados ───────────────────────────────────────────
-        st.markdown("---")
-        st.subheader("📋 Períodos disponíveis no banco de dados")
-        try:
-            periodos = data_loader.listar_periodos(_fb_db)
-            if periodos:
-                df_periodos = pd.DataFrame(periodos)
-                df_periodos['Período'] = df_periodos.apply(
-                    lambda r: f"{dict_mes_full.get(r['mes'], '?')}/{r['ano']}", axis=1)
-                df_periodos['Última atualização'] = df_periodos['data_upload']
-                st.dataframe(df_periodos[['Período', 'Última atualização']].reset_index(drop=True),
-                             use_container_width=True, hide_index=True)
-            else:
-                st.info("Nenhum período carregado ainda.")
-        except Exception as e:
-            st.warning(f"Erro ao listar períodos: {e}")
+        if step == 1:
+            st.markdown("---")
+            st.subheader("📋 Histórico do Banco de Dados")
+            try:
+                periodos = data_loader.listar_periodos(_fb_db)
+                if periodos:
+                    df_periodos = pd.DataFrame(periodos)
+                    df_periodos['Período'] = df_periodos.apply(lambda r: f"{dict_mes_full.get(r['mes'], '?')}/{r['ano']}", axis=1)
+                    df_periodos['Última atualização'] = df_periodos['data_upload']
+                    st.dataframe(df_periodos[['Período', 'Última atualização']].reset_index(drop=True), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Nenhum período carregado ainda.")
+            except Exception as e:
+                st.warning(f"Erro ao listar períodos: {e}")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
