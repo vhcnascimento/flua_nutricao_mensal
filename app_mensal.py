@@ -164,16 +164,48 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
 
-    /* Estilização dos Botões */
-    .stButton button {
+    /* Estilização dos Botões Primários (Avançar/Confirmar) */
+    .stButton button[kind="primary"], 
+    .stButton button[data-testid="baseButton-primary"] {
+        background-color: #044851 !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 10px !important;
+        font-weight: 700 !important;
+        font-size: 1.1rem !important;
+        padding: 0.7rem 1.5rem !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 4px 10px rgba(4, 72, 81, 0.3) !important;
+    }
+    .stButton button[kind="primary"]:hover, 
+    .stButton button[data-testid="baseButton-primary"]:hover {
+        background-color: #066b78 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 15px rgba(4, 72, 81, 0.4) !important;
+    }
+    .stButton button[kind="primary"]:disabled, 
+    .stButton button[data-testid="baseButton-primary"]:disabled {
+        background-color: #aab7b8 !important;
+        opacity: 0.6 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        cursor: not-allowed !important;
+    }
+
+    /* Estilização dos Botões Secundários (Retornar) */
+    .stButton button[kind="secondary"], 
+    .stButton button[data-testid="baseButton-secondary"] {
         background-color: #f8f9fa !important;
         color: #7f8c8d !important;
-        border: 1px solid #dcdde1 !important;
+        border: 2px solid #dcdde1 !important;
         border-radius: 10px !important;
-        font-weight: 500 !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        padding: 0.6rem 1.2rem !important;
         transition: all 0.2s ease !important;
     }
-    .stButton button:hover {
+    .stButton button[kind="secondary"]:hover,
+    .stButton button[data-testid="baseButton-secondary"]:hover {
         border-color: #044851 !important;
         color: #044851 !important;
         background-color: #ffffff !important;
@@ -955,8 +987,14 @@ if st.session_state.current_step == 1:
                         if df_e_db.empty: df_e_db = pd.DataFrame(columns=['Data', 'Nutri', 'ID caso', 'Status atendimento \n(Realizado, Falta, Reagendou)', 'Arquivo', 'Semana_mes', 'Semana_label', 'Ano', 'Mês'])
 
                         file_a_obj = st.session_state.get("file_a_carga")
-                        if file_a_obj: file_a_obj.seek(0)
-                        df_a = processar_input_a(file_a_obj) if file_a_obj else df_a_db
+                        logs_a = []
+                        if file_a_obj:
+                            file_a_obj.seek(0)
+                            df_a = processar_input_a(file_a_obj)
+                            logs_a.append(("OK", file_a_obj.name, ""))
+                        else:
+                            df_a = df_a_db
+                            if not df_a.empty: logs_a.append(("OK", "Banco de Dados (Input A já existente)", ""))
 
                         files_d_obj = st.session_state.get("files_d_carga", [])
                         if files_d_obj:
@@ -982,12 +1020,13 @@ if st.session_state.current_step == 1:
                         st.session_state.pre_save_data = {
                             "ano": int(ano_carga),
                             "mes": int(mes_carga),
+                            "periodo_existe": periodo_existe,
                             "custo": custo,
                             "imp": imp,
                             "val": val,
                             "df_a": df_a, "df_d": df_d, "df_e": df_e,
                             "df_c": df_c, "df_f": df_f, "df_g": df_g,
-                            "logs_d": logs_d, "logs_e": logs_e, "bad": bad
+                            "logs_a": logs_a, "logs_d": logs_d, "logs_e": logs_e, "bad": bad
                         }
                         st.session_state.carga_step = 2
                         st.rerun()
@@ -1010,6 +1049,12 @@ if st.session_state.current_step == 1:
                 st.session_state.carga_step = 1
                 st.rerun()
                 
+            competencia_nome = f"{dict_mes_full.get(data['mes'], '?')} / {data['ano']}"
+            if data.get('periodo_existe'):
+                st.markdown(f'<div class="warning-box" style="margin-bottom: 20px;">🗓️ <strong>Competência selecionada: {competencia_nome}</strong> <br>⚠️ Atenção: Esta competência já possui dados no banco. Ao confirmar, você sobrescreverá os dados operacionais existentes!</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div class="info-box" style="margin-bottom: 20px;">🗓️ <strong>Competência selecionada: {competencia_nome}</strong><br>Você está prestes a carregar uma nova competência.</div>', unsafe_allow_html=True)
+
             df_a = data['df_a']
             df_g = data['df_g']
             df_e = data['df_e']
@@ -1047,25 +1092,46 @@ if st.session_state.current_step == 1:
                     <div class="kpi-value"><span class="currency">R$</span> {fat_total:,.2f}</div>
                 </div>
             </div>
+            </div>
             ''', unsafe_allow_html=True)
 
+            if df_g is not None:
+                st.markdown("##### 📊 Previsão da Tabela de Faturamento")
+                # Flatten MultiIndex to match the exact format
+                df_g_display = df_g.reset_index()
+                df_g_display.columns = [' - '.join([str(c) for c in col]).strip(' - ') if isinstance(col, tuple) else col for col in df_g_display.columns]
+                
+                # Remover colunas financeiras da visualização da Revisão para focar na auditoria (check e agendamentos)
+                cols_to_hide = [c for c in df_g_display.columns if 'Valor Unitário' in str(c) or 'Total Faturamento' in str(c)]
+                df_g_display = df_g_display.drop(columns=cols_to_hide, errors='ignore')
+                
+                st.dataframe(df_g_display, use_container_width=True, hide_index=True)
+            
+            st.markdown("<br>", unsafe_allow_html=True)
+
             # Logs de Erro
+            logs_a = data.get('logs_a', [])
             logs_d = data['logs_d']
             logs_e = data['logs_e']
-            has_errors = any(s == "ERRO" for s, n, m in logs_d) or any(s == "ERRO" for s, n, m in logs_e)
+            has_errors = any(s == "ERRO" for s, n, m in logs_a) or any(s == "ERRO" for s, n, m in logs_d) or any(s == "ERRO" for s, n, m in logs_e)
             
             if has_errors:
                 st.markdown('<div class="error-box" style="margin-bottom: 20px;">⚠️ Houve problemas na leitura de alguns arquivos. Confira abaixo.</div>', unsafe_allow_html=True)
                 
-            c_log1, c_log2 = st.columns(2)
+            c_log1, c_log2, c_log3 = st.columns(3)
             with c_log1:
-                if logs_d:
-                    with st.expander("📄 Logs do Optum (Input D)", expanded=has_errors):
-                        for status, nome, msg in logs_d:
+                if logs_a:
+                    with st.expander("📄 Logs da Oferta (A)", expanded=has_errors):
+                        for status, nome, msg in logs_a:
                             st.markdown(f"{'✅' if status == 'OK' else '❌'} **{nome}**" + (f" — {msg}" if msg else ""))
             with c_log2:
+                if logs_d:
+                    with st.expander("📄 Logs do Optum (D)", expanded=has_errors):
+                        for status, nome, msg in logs_d:
+                            st.markdown(f"{'✅' if status == 'OK' else '❌'} **{nome}**" + (f" — {msg}" if msg else ""))
+            with c_log3:
                 if logs_e:
-                    with st.expander("📄 Logs das Planilhas (Input E)", expanded=has_errors):
+                    with st.expander("📄 Logs Planilhas (E)", expanded=has_errors):
                         for status, nome, msg in logs_e:
                             st.markdown(f"{'✅' if status == 'OK' else '❌'} **{nome}**" + (f" — {msg}" if msg else ""))
             
