@@ -1230,11 +1230,12 @@ elif st.session_state.current_step == 2:
             opcoes_labels = list(opcoes_periodo.keys())
 
             # Filtro de range: De → Até
+            opcoes_labels_inverso = list(reversed(opcoes_labels))
             col_de, col_ate = st.columns(2)
             with col_de:
-                sel_inicio = st.selectbox("🗓️ De:", opcoes_labels, index=0, key="filtro_inicio")
+                sel_inicio = st.selectbox("🗓️ De:", opcoes_labels_inverso, index=1, key="filtro_inicio")
             with col_ate:
-                sel_fim = st.selectbox("Até:", opcoes_labels, index=len(opcoes_labels) - 1, key="filtro_fim")
+                sel_fim = st.selectbox("Até:", opcoes_labels_inverso, index=0, key="filtro_fim")
 
             ano_ini, mes_ini = opcoes_periodo[sel_inicio]
             ano_fim, mes_fim = opcoes_periodo[sel_fim]
