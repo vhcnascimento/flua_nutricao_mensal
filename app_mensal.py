@@ -750,11 +750,12 @@ def grafico_barra_linha(df_plot, col_x, titulo):
                                  marker_color=cor, text=df_plot[col], textposition="outside"),
                           secondary_y=False)
     for col, cor in [("% Ocupação","#fcc105"),("% Realizado","#463e8c")]:
+        pos = "top center" if col == "% Ocupação" else "bottom center"
         if col in df_plot.columns:
             fig.add_trace(go.Scatter(x=df_plot[col_x], y=df_plot[col], name=col,
                                      mode="lines+markers+text",
                                      text=df_plot[col].round(0).astype(int).astype(str)+"%",
-                                     textposition="top center",
+                                     textposition=pos,
                                      line=dict(color=cor, width=2)),
                           secondary_y=True)
     fig.update_layout(title=titulo, barmode="group", hovermode="x unified",
@@ -767,7 +768,7 @@ def grafico_barra_linha(df_plot, col_x, titulo):
     max_abs = df_plot[['Oferta', 'Ocupação', 'Realizado']].max().max() if not df_plot.empty else 100
     
     fig.update_yaxes(title_text="Agendas", range=[0, max_abs * 1.8], secondary_y=False)
-    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 110], secondary_y=True)
+    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 130], secondary_y=True)
     return fig
 
 
