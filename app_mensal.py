@@ -750,11 +750,12 @@ def grafico_barra_linha(df_plot, col_x, titulo):
                                  marker_color=cor, text=df_plot[col], textposition="outside"),
                           secondary_y=False)
     for col, cor in [("% Ocupação","#fcc105"),("% Realizado","#463e8c")]:
+        pos = "top center" if col == "% Ocupação" else "bottom center"
         if col in df_plot.columns:
             fig.add_trace(go.Scatter(x=df_plot[col_x], y=df_plot[col], name=col,
                                      mode="lines+markers+text",
                                      text=df_plot[col].round(0).astype(int).astype(str)+"%",
-                                     textposition="top center",
+                                     textposition=pos,
                                      line=dict(color=cor, width=2)),
                           secondary_y=True)
     fig.update_layout(title=titulo, barmode="group", hovermode="x unified",
@@ -767,7 +768,7 @@ def grafico_barra_linha(df_plot, col_x, titulo):
     max_abs = df_plot[['Oferta', 'Ocupação', 'Realizado']].max().max() if not df_plot.empty else 100
     
     fig.update_yaxes(title_text="Agendas", range=[0, max_abs * 1.8], secondary_y=False)
-    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 110], secondary_y=True)
+    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 130], secondary_y=True)
     return fig
 
 
@@ -1230,11 +1231,12 @@ elif st.session_state.current_step == 2:
             opcoes_labels = list(opcoes_periodo.keys())
 
             # Filtro de range: De → Até
+            opcoes_labels_inverso = list(reversed(opcoes_labels))
             col_de, col_ate = st.columns(2)
             with col_de:
-                sel_inicio = st.selectbox("🗓️ De:", opcoes_labels, index=0, key="filtro_inicio")
+                sel_inicio = st.selectbox("🗓️ De:", opcoes_labels_inverso, index=1, key="filtro_inicio")
             with col_ate:
-                sel_fim = st.selectbox("Até:", opcoes_labels, index=len(opcoes_labels) - 1, key="filtro_fim")
+                sel_fim = st.selectbox("Até:", opcoes_labels_inverso, index=0, key="filtro_fim")
 
             ano_ini, mes_ini = opcoes_periodo[sel_inicio]
             ano_fim, mes_fim = opcoes_periodo[sel_fim]
@@ -1443,6 +1445,11 @@ elif st.session_state.current_step == 2:
                             ordered += [c for c in extras if c not in ordered]
                             ordered += [c for c in desired_order[-2:] if c in df_g_disp.columns]
                             df_g_disp = df_g_disp[ordered]
+
+                            # Formatar colunas financeiras (R$)
+                            for col in df_g_disp.columns:
+                                if "(R$)" in str(col):
+                                    df_g_disp[col] = pd.to_numeric(df_g_disp[col], errors='coerce').fillna(0).apply(fmt_val)
 
                         st.dataframe(df_g_disp.style.apply(apply_row_colors, axis=1),
                                      use_container_width=True, height=400, hide_index=True)
