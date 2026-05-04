@@ -1445,6 +1445,11 @@ elif st.session_state.current_step == 2:
                             ordered += [c for c in desired_order[-2:] if c in df_g_disp.columns]
                             df_g_disp = df_g_disp[ordered]
 
+                            # Formatar colunas financeiras (R$)
+                            for col in df_g_disp.columns:
+                                if "(R$)" in str(col):
+                                    df_g_disp[col] = pd.to_numeric(df_g_disp[col], errors='coerce').fillna(0).apply(fmt_val)
+
                         st.dataframe(df_g_disp.style.apply(apply_row_colors, axis=1),
                                      use_container_width=True, height=400, hide_index=True)
                 except Exception as e:
