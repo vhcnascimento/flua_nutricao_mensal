@@ -325,6 +325,26 @@ def label_semana(df):
     return df
 
 
+def safe_parse_date(s):
+    s_series = pd.Series(s)
+    s_num = pd.to_numeric(s_series, errors='coerce')
+    dt = pd.Series(pd.NaT, index=s_series.index)
+    
+    mask_num = s_num.notna()
+    if mask_num.any():
+        dt.loc[mask_num] = pd.to_datetime(s_num[mask_num], unit='D', origin='1899-12-30')
+        
+    mask_str = ~mask_num
+    if mask_str.any():
+        parsed_str = pd.to_datetime(s_series[mask_str], format="%d/%m/%Y", errors='coerce')
+        still_nat = parsed_str.isna()
+        if still_nat.any():
+            parsed_str.loc[still_nat] = pd.to_datetime(s_series[mask_str][still_nat], errors='coerce')
+        dt.loc[mask_str] = parsed_str
+        
+    return dt
+
+
 def tratar_nomes_nutri(df, coluna='Nutri'):
     df = df.copy()
     df[coluna] = df[coluna].str.strip().str.upper().replace(MAPA_NOMES)
@@ -383,7 +403,7 @@ def processar_input_a(file_obj):
     if col_data:
         out['Data completa'] = df[col_data].astype(str).copy()
         out["Data"] = out["Data completa"].str.split(" -").str[0]
-        out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
+        out["Data"] = safe_parse_date(out["Data"])
         out['Ano']     = out["Data"].dt.year
         out['Mês_num'] = out["Data"].dt.month
         out['Mês']     = out['Mês_num'].map(dict_mes_full)
@@ -487,7 +507,7 @@ def processar_input_d(file_objs):
 
     df_all = pd.concat(frames, ignore_index=True)
     df_all.rename(columns={'Data sessão':'Data','Responsável':'Nutri'}, inplace=True)
-    df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
+    df_all["Data"] = safe_parse_date(df_all["Data"])
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
@@ -541,7 +561,7 @@ def processar_input_e(file_objs):
     if col_status in df_all.columns:
         df_all = df_all[~df_all[col_status].isnull()].copy()
     df_all.rename(columns={'Data ':'Data','Nutri ':'Nutri'}, inplace=True)
-    df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
+    df_all["Data"] = safe_parse_date(df_all["Data"])
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
