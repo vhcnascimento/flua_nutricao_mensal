@@ -325,6 +325,26 @@ def label_semana(df):
     return df
 
 
+def safe_parse_date(s):
+    s_series = pd.Series(s)
+    s_num = pd.to_numeric(s_series, errors='coerce')
+    dt = pd.Series(pd.NaT, index=s_series.index)
+    
+    mask_num = s_num.notna()
+    if mask_num.any():
+        dt.loc[mask_num] = pd.to_datetime(s_num[mask_num], unit='D', origin='1899-12-30')
+        
+    mask_str = ~mask_num
+    if mask_str.any():
+        parsed_str = pd.to_datetime(s_series[mask_str], format="%d/%m/%Y", errors='coerce')
+        still_nat = parsed_str.isna()
+        if still_nat.any():
+            parsed_str.loc[still_nat] = pd.to_datetime(s_series[mask_str][still_nat], errors='coerce')
+        dt.loc[mask_str] = parsed_str
+        
+    return dt
+
+
 def tratar_nomes_nutri(df, coluna='Nutri'):
     df = df.copy()
     df[coluna] = df[coluna].str.strip().str.upper().replace(MAPA_NOMES)
@@ -383,7 +403,7 @@ def processar_input_a(file_obj):
     if col_data:
         out['Data completa'] = df[col_data].astype(str).copy()
         out["Data"] = out["Data completa"].str.split(" -").str[0]
-        out["Data"] = pd.to_datetime(out["Data"], format="%d/%m/%Y", errors="coerce")
+        out["Data"] = safe_parse_date(out["Data"])
         out['Ano']     = out["Data"].dt.year
         out['Mês_num'] = out["Data"].dt.month
         out['Mês']     = out['Mês_num'].map(dict_mes_full)
@@ -487,7 +507,7 @@ def processar_input_d(file_objs):
 
     df_all = pd.concat(frames, ignore_index=True)
     df_all.rename(columns={'Data sessão':'Data','Responsável':'Nutri'}, inplace=True)
-    df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
+    df_all["Data"] = safe_parse_date(df_all["Data"])
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
@@ -541,7 +561,7 @@ def processar_input_e(file_objs):
     if col_status in df_all.columns:
         df_all = df_all[~df_all[col_status].isnull()].copy()
     df_all.rename(columns={'Data ':'Data','Nutri ':'Nutri'}, inplace=True)
-    df_all["Data"] = pd.to_datetime(df_all["Data"], format="%d/%m/%Y", errors="coerce")
+    df_all["Data"] = safe_parse_date(df_all["Data"])
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
@@ -926,14 +946,23 @@ if st.session_state.current_step == 1:
             ''', unsafe_allow_html=True)
 
             # ── Competência ──
+            ps = st.session_state.get('pre_save_data')
+            
+            # Inicializa variáveis com valores de pre_save_data se existir, senão usa os defaults
+            mes_padrao = ps['mes'] if ps else datetime.now().month
+            ano_padrao = ps['ano'] if ps else datetime.now().year
+            custo_padrao = ps['custo'] if ps else float(st.session_state.custo_nutri_mes)
+            imp_padrao = ps['imp'] if ps else float(st.session_state.impostos)
+            val_padrao = ps['val'] if ps else float(st.session_state.valor_consulta)
+
             col_setup1, col_setup2 = st.columns([1, 1])
             with col_setup1:
                 st.markdown('<div class="upload-card"><h4>📅 Competência</h4>', unsafe_allow_html=True)
                 c_mes, c_ano = st.columns(2)
                 with c_mes:
-                    mes_carga = st.selectbox("Mês", list(range(1, 13)), format_func=lambda x: dict_mes_full[x], key="mes_carga")
+                    mes_carga = st.selectbox("Mês", list(range(1, 13)), index=mes_padrao-1, format_func=lambda x: dict_mes_full[x], key="mes_carga")
                 with c_ano:
-                    ano_carga = st.number_input("Ano", min_value=2020, max_value=2030, value=datetime.now().year, step=1, key="ano_carga")
+                    ano_carga = st.number_input("Ano", min_value=2020, max_value=2030, value=ano_padrao, step=1, key="ano_carga")
                 
                 periodo_existe = data_loader.verificar_periodo_existe(_fb_db, int(ano_carga), int(mes_carga))
                 if periodo_existe:
@@ -948,27 +977,46 @@ if st.session_state.current_step == 1:
                 st.markdown('<div class="upload-card"><h4>💰 Parâmetros Financeiros</h4>', unsafe_allow_html=True)
                 c1, c2, c3 = st.columns(3)
                 with c1:
-                    custo = st.number_input("Custo Nutris (R$)", min_value=0.0, value=float(st.session_state.custo_nutri_mes), step=1000.0, key="custo_carga")
+                    custo = st.number_input("Custo Nutris (R$)", min_value=0.0, value=float(custo_padrao), step=1000.0, key="custo_carga")
                 with c2:
-                    imp = st.number_input("Impostos (%)", min_value=0.0, max_value=100.0, value=float(st.session_state.impostos), step=0.5, key="imp_carga")
+                    imp = st.number_input("Impostos (%)", min_value=0.0, max_value=100.0, value=float(imp_padrao), step=0.5, key="imp_carga")
                 with c3:
-                    val = st.number_input("Valor Conf. (R$)", min_value=0.0, value=float(st.session_state.valor_consulta), step=1.0, key="val_carga")
+                    val = st.number_input("Valor por Consulta (R$)", min_value=0.0, value=float(val_padrao), step=1.0, key="val_carga")
                 st.markdown('</div>', unsafe_allow_html=True)
 
             # ── Uploads ──
+            def formatar_nomes_arquivos(logs):
+                if not logs: return ""
+                nomes = [l[1] for l in logs if len(l) > 1 and l[0] == "OK" and "Banco de Dados" not in l[1]]
+                if not nomes: return ""
+                return "\n\n**Arquivos atuais:**\n" + "\n".join([f"- `{n}`" for n in nomes])
+
             st.markdown('<div class="upload-card"><h4>📥 1. Disponibilidade Optum</h4>', unsafe_allow_html=True)
+            if ps and not ps['df_a'].empty:
+                txt_a = "✅ Planilha de Oferta em memória. Envie novo arquivo apenas se quiser substituir."
+                txt_a += formatar_nomes_arquivos(ps.get('logs_a', []))
+                st.info(txt_a)
             file_a = st.file_uploader("Arquivo A (Planilha de Oferta - 1 arquivo)", type=['xlsx','xls'], key="file_a_carga")
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="upload-card"><h4>📥 2. Relatórios de Sessões Optum</h4>', unsafe_allow_html=True)
+            if ps and not ps['df_d'].empty:
+                txt_d = "✅ Agendamentos Ocupados em memória. Envie novo(s) arquivo(s) apenas se quiser substituir."
+                txt_d += formatar_nomes_arquivos(ps.get('logs_d', []))
+                st.info(txt_d)
             files_d = st.file_uploader("Arquivos D (Agendamentos Ocupados - Múltiplos)", type=['xlsx','xls'], accept_multiple_files=True, key="files_d_carga")
             st.markdown('</div>', unsafe_allow_html=True)
 
             st.markdown('<div class="upload-card"><h4>📥 3. Controles das Nutricionistas</h4>', unsafe_allow_html=True)
+            if ps and not ps['df_e'].empty:
+                txt_e = "✅ Controles das Nutricionistas em memória. Envie novo(s) arquivo(s) apenas se quiser substituir."
+                txt_e += formatar_nomes_arquivos(ps.get('logs_e', []))
+                st.info(txt_e)
             files_e = st.file_uploader("Arquivos E (Auditoria para Check - Múltiplos)", type=['xlsx','xls'], accept_multiple_files=True, key="files_e_carga")
             st.markdown('</div>', unsafe_allow_html=True)
 
-            pode_enviar = file_a is not None or len(files_d) > 0 or len(files_e) > 0
+            tem_dados_memoria = ps is not None and (not ps['df_a'].empty or not ps['df_d'].empty or not ps['df_e'].empty)
+            pode_enviar = file_a is not None or len(files_d) > 0 or len(files_e) > 0 or tem_dados_memoria
 
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("Processar Dados e Revisar (Avançar) ➡️", type="primary", use_container_width=True, disabled=not pode_enviar):
@@ -993,6 +1041,9 @@ if st.session_state.current_step == 1:
                             file_a_obj.seek(0)
                             df_a = processar_input_a(file_a_obj)
                             logs_a.append(("OK", file_a_obj.name, ""))
+                        elif ps and not ps['df_a'].empty:
+                            df_a = ps['df_a']
+                            logs_a = ps['logs_a']
                         else:
                             df_a = df_a_db
                             if not df_a.empty: logs_a.append(("OK", "Banco de Dados (Input A já existente)", ""))
@@ -1000,12 +1051,26 @@ if st.session_state.current_step == 1:
                         files_d_obj = st.session_state.get("files_d_carga", [])
                         if files_d_obj:
                             for f in files_d_obj: f.seek(0)
-                        df_d, logs_d = processar_input_d(files_d_obj) if files_d_obj else (df_d_db, [])
+                            df_d, logs_d = processar_input_d(files_d_obj)
+                        elif ps and not ps['df_d'].empty:
+                            df_d = ps['df_d']
+                            logs_d = ps['logs_d']
+                        else:
+                            df_d = df_d_db
+                            logs_d = []
+                            if not df_d.empty: logs_d.append(("OK", "Banco de Dados (Input D já existente)", ""))
 
                         files_e_obj = st.session_state.get("files_e_carga", [])
                         if files_e_obj:
                             for f in files_e_obj: f.seek(0)
-                        df_e, logs_e = processar_input_e(files_e_obj) if files_e_obj else (df_e_db, [])
+                            df_e, logs_e = processar_input_e(files_e_obj)
+                        elif ps and not ps['df_e'].empty:
+                            df_e = ps['df_e']
+                            logs_e = ps['logs_e']
+                        else:
+                            df_e = df_e_db
+                            logs_e = []
+                            if not df_e.empty: logs_e.append(("OK", "Banco de Dados (Input E já existente)", ""))
 
                         # --- FILTRO DE COMPETÊNCIA ---
                         # Aplica máscara para garantir que apenas o mês/ano selecionado seja processado (vital para Input E que possui histórico)
