@@ -431,6 +431,10 @@ def processar_input_a(file_obj):
         out['Nutri'] = df[col_nutri].astype(str).str.strip().str.upper()
 
     if 'Mês_num' in out.columns: out.drop(columns=['Mês_num'], inplace=True)
+    
+    # Remover linhas sem data válida antes do label_semana
+    out = out.dropna(subset=['Data']).copy()
+    
     out = label_semana(out)
     out['Mês'] = out['Data'].dt.month
     return out
@@ -497,6 +501,7 @@ def processar_input_d(file_objs):
                 if c not in df.columns:
                     df[c] = None
             
+            df["Arquivo"] = nome
             frames.append(df)
             logs.append(("OK", nome, ""))
         except Exception as e:
@@ -508,6 +513,15 @@ def processar_input_d(file_objs):
     df_all = pd.concat(frames, ignore_index=True)
     df_all.rename(columns={'Data sessão':'Data','Responsável':'Nutri'}, inplace=True)
     df_all["Data"] = safe_parse_date(df_all["Data"])
+    
+    # Validação de arquivos vazios após conversão de datas
+    arquivos_validos = set(df_all.dropna(subset=['Data'])['Arquivo'].unique()) if 'Arquivo' in df_all.columns else set()
+    for i, (status, nome, msg) in enumerate(logs):
+        if status == "OK" and nome not in arquivos_validos:
+            logs[i] = ("ERRO", nome, "Nenhum dado válido pôde ser extraído (datas ausentes ou formato inválido).")
+
+    df_all = df_all.dropna(subset=['Data']).copy()
+    
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
@@ -562,6 +576,15 @@ def processar_input_e(file_objs):
         df_all = df_all[~df_all[col_status].isnull()].copy()
     df_all.rename(columns={'Data ':'Data','Nutri ':'Nutri'}, inplace=True)
     df_all["Data"] = safe_parse_date(df_all["Data"])
+    
+    # Validação de arquivos vazios após conversão de datas
+    arquivos_validos = set(df_all.dropna(subset=['Data'])['Arquivo'].unique()) if 'Arquivo' in df_all.columns else set()
+    for i, (status, nome, msg) in enumerate(logs):
+        if status == "OK" and nome not in arquivos_validos:
+            logs[i] = ("ERRO", nome, "Nenhum dado válido pôde ser extraído (datas ou status ausentes/inválidos).")
+
+    df_all = df_all.dropna(subset=['Data']).copy()
+    
     df_all = label_semana(df_all)
     df_all['Ano'] = df_all['Data'].dt.year
     df_all['Mês'] = df_all['Data'].dt.month
