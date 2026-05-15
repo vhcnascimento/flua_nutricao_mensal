@@ -327,21 +327,45 @@ def label_semana(df):
 
 def safe_parse_date(s):
     s_series = pd.Series(s)
-    s_num = pd.to_numeric(s_series, errors='coerce')
     dt = pd.Series(pd.NaT, index=s_series.index)
     
-    mask_num = s_num.notna()
-    if mask_num.any():
-        dt.loc[mask_num] = pd.to_datetime(s_num[mask_num], unit='D', origin='1899-12-30')
+    # Se já for datetime, retorna direto
+    if pd.api.types.is_datetime64_any_dtype(s_series):
+        return pd.to_datetime(s_series, errors='coerce')
         
-    mask_str = ~mask_num
-    if mask_str.any():
-        parsed_str = pd.to_datetime(s_series[mask_str], format="%d/%m/%Y", errors='coerce')
-        still_nat = parsed_str.isna()
-        if still_nat.any():
-            parsed_str.loc[still_nat] = pd.to_datetime(s_series[mask_str][still_nat], errors='coerce')
-        dt.loc[mask_str] = parsed_str
+    # Verifica se há objetos Timestamp/datetime misturados
+    is_dt = s_series.apply(lambda x: isinstance(x, (pd.Timestamp, datetime)))
+    if is_dt.any():
+        dt.loc[is_dt] = pd.to_datetime(s_series[is_dt])
         
+    mask_rem = ~is_dt
+    if mask_rem.any():
+        s_rem = s_series[mask_rem]
+        
+        # Tenta numérico (Ex: Excel serial dates tipo 45000)
+        s_num = pd.to_numeric(s_rem, errors='coerce')
+        mask_num = s_num.notna()
+        
+        # Filtra números que são plausíveis como datas do Excel (aprox. anos 1900 a 2100)
+        valid_excel = mask_num & (s_num > 1000) & (s_num < 100000)
+        if valid_excel.any():
+            idx_valid = valid_excel[valid_excel].index
+            dt.loc[idx_valid] = pd.to_datetime(s_num[idx_valid], unit='D', origin='1899-12-30')
+            
+        # O restante tenta parse de string
+        mask_str = mask_rem & ~valid_excel
+        if mask_str.any():
+            idx_str = mask_str[mask_str].index
+            s_str = s_series[idx_str]
+            
+            parsed_str = pd.to_datetime(s_str, format="%d/%m/%Y", errors='coerce')
+            still_nat = parsed_str.isna()
+            if still_nat.any():
+                idx_still_nat = still_nat[still_nat].index
+                parsed_str.loc[idx_still_nat] = pd.to_datetime(s_str[idx_still_nat], errors='coerce')
+                
+            dt.loc[idx_str] = parsed_str
+            
     return dt
 
 
