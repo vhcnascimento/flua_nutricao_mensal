@@ -792,13 +792,15 @@ def grafico_barra_linha(df_plot, col_x, titulo):
             fig.add_trace(go.Bar(x=df_plot[col_x], y=df_plot[col], name=col,
                                  marker_color=cor, text=df_plot[col], textposition="outside"),
                           secondary_y=False)
-    for col, cor in [("% Ocupação","#fcc105"),("% Realizado","#463e8c")]:
+    for col, cor in [("% Ocupação","#2952a3"),("% Realizado","#c3d76b")]:
         pos = "top center" if col == "% Ocupação" else "bottom center"
         if col in df_plot.columns:
+            text_labels = ["<b>" + str(int(round(v))) + "%</b>" for v in df_plot[col]]
             fig.add_trace(go.Scatter(x=df_plot[col_x], y=df_plot[col], name=col,
                                      mode="lines+markers+text",
-                                     text=df_plot[col].round(0).astype(int).astype(str)+"%",
+                                     text=text_labels,
                                      textposition=pos,
+                                     textfont=dict(color=cor, size=13),
                                      line=dict(color=cor, width=2)),
                           secondary_y=True)
     fig.update_layout(title=titulo, barmode="group", hovermode="x unified",
@@ -810,8 +812,8 @@ def grafico_barra_linha(df_plot, col_x, titulo):
     # 2. Escala Percentual (Linhas): ocupam a parte superior (acima das barras)
     max_abs = df_plot[['Oferta', 'Ocupação', 'Realizado']].max().max() if not df_plot.empty else 100
     
-    fig.update_yaxes(title_text="Agendas", range=[0, max_abs * 1.8], secondary_y=False)
-    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 130], secondary_y=True)
+    fig.update_yaxes(title_text="Agendas", range=[0, max_abs * 1.8], showgrid=True, secondary_y=False)
+    fig.update_yaxes(title_text="Percentual (%)", range=[-120, 130], showgrid=False, secondary_y=True)
     return fig
 
 
