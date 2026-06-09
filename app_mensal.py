@@ -1100,7 +1100,34 @@ if st.session_state.current_step == 1:
                         files_d_obj = st.session_state.get("files_d_carga", [])
                         if files_d_obj:
                             for f in files_d_obj: f.seek(0)
-                            df_d, logs_d = processar_input_d(files_d_obj)
+                            new_df_d, new_logs_d = processar_input_d(files_d_obj)
+                            
+                            # Obter dados base pré-existentes (preferência para 'ps', com fallback para o banco de dados)
+                            base_df_d = pd.DataFrame()
+                            base_logs_d = []
+                            if ps and not ps['df_d'].empty:
+                                base_df_d = ps['df_d'].copy()
+                                base_logs_d = list(ps['logs_d'])
+                            elif not df_d_db.empty:
+                                base_df_d = df_d_db.copy()
+                                base_logs_d = [("OK", "Banco de Dados (Input D já existente)", "")]
+                            
+                            if not base_df_d.empty:
+                                # Identificar nomes dos novos arquivos carregados
+                                new_filenames = [log[1] for log in new_logs_d if len(log) > 1]
+                                
+                                # Filtrar/remover registros antigos com o mesmo nome de arquivo
+                                if 'Arquivo' in base_df_d.columns:
+                                    base_df_d = base_df_d[~base_df_d['Arquivo'].isin(new_filenames)]
+                                
+                                # Filtrar/remover logs antigos com o mesmo nome de arquivo
+                                base_logs_d = [log for log in base_logs_d if len(log) > 1 and log[1] not in new_filenames]
+                                
+                                df_d = pd.concat([base_df_d, new_df_d], ignore_index=True)
+                                logs_d = base_logs_d + new_logs_d
+                            else:
+                                df_d = new_df_d
+                                logs_d = new_logs_d
                         elif ps and not ps['df_d'].empty:
                             df_d = ps['df_d']
                             logs_d = ps['logs_d']
@@ -1112,7 +1139,34 @@ if st.session_state.current_step == 1:
                         files_e_obj = st.session_state.get("files_e_carga", [])
                         if files_e_obj:
                             for f in files_e_obj: f.seek(0)
-                            df_e, logs_e = processar_input_e(files_e_obj)
+                            new_df_e, new_logs_e = processar_input_e(files_e_obj)
+                            
+                            # Obter dados base pré-existentes (preferência para 'ps', com fallback para o banco de dados)
+                            base_df_e = pd.DataFrame()
+                            base_logs_e = []
+                            if ps and not ps['df_e'].empty:
+                                base_df_e = ps['df_e'].copy()
+                                base_logs_e = list(ps['logs_e'])
+                            elif not df_e_db.empty:
+                                base_df_e = df_e_db.copy()
+                                base_logs_e = [("OK", "Banco de Dados (Input E já existente)", "")]
+                                
+                            if not base_df_e.empty:
+                                # Identificar nomes dos novos arquivos carregados
+                                new_filenames = [log[1] for log in new_logs_e if len(log) > 1]
+                                
+                                # Filtrar/remover registros antigos com o mesmo nome de arquivo
+                                if 'Arquivo' in base_df_e.columns:
+                                    base_df_e = base_df_e[~base_df_e['Arquivo'].isin(new_filenames)]
+                                    
+                                # Filtrar/remover logs antigos com o mesmo nome de arquivo
+                                base_logs_e = [log for log in base_logs_e if len(log) > 1 and log[1] not in new_filenames]
+                                
+                                df_e = pd.concat([base_df_e, new_df_e], ignore_index=True)
+                                logs_e = base_logs_e + new_logs_e
+                            else:
+                                df_e = new_df_e
+                                logs_e = new_logs_e
                         elif ps and not ps['df_e'].empty:
                             df_e = ps['df_e']
                             logs_e = ps['logs_e']
@@ -1313,8 +1367,14 @@ if st.session_state.current_step == 1:
                 periodos = data_loader.listar_periodos(_fb_db)
                 if periodos:
                     df_periodos = pd.DataFrame(periodos)
+                    if 'data_upload' in df_periodos.columns:
+                        df_periodos['temp_date'] = pd.to_datetime(df_periodos['data_upload'], errors='coerce')
+                        df_periodos = df_periodos.sort_values(by='temp_date', ascending=False)
+                        df_periodos['Última atualização'] = df_periodos['temp_date'].dt.strftime('%d/%m/%Y %H:%M:%S').fillna(df_periodos['data_upload'])
+                        df_periodos = df_periodos.drop(columns=['temp_date'])
+                    else:
+                        df_periodos['Última atualização'] = df_periodos.get('data_upload', '')
                     df_periodos['Período'] = df_periodos.apply(lambda r: f"{dict_mes_full.get(r['mes'], '?')}/{r['ano']}", axis=1)
-                    df_periodos['Última atualização'] = df_periodos['data_upload']
                     st.dataframe(df_periodos[['Período', 'Última atualização']].reset_index(drop=True), use_container_width=True, hide_index=True)
                 else:
                     st.info("Nenhum período carregado ainda.")
